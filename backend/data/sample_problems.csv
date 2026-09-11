@@ -1,0 +1,163 @@
+title,difficulty,topic,companies,source_url,source_platform
+Two Sum,Easy,Array|Hash Table,Google|Amazon|Meta|Microsoft,https://leetcode.com/problems/two-sum,LeetCode
+Contains Duplicate,Easy,Array|Hash Table,Amazon|Apple,https://leetcode.com/problems/contains-duplicate,LeetCode
+Valid Anagram,Easy,Hash Table|String,Google|Uber,https://leetcode.com/problems/valid-anagram,LeetCode
+Group Anagrams,Medium,Array|Hash Table|String,Amazon|Meta|Google,https://leetcode.com/problems/group-anagrams,LeetCode
+Top K Frequent Elements,Medium,Array|Hash Table|Heap,Amazon|Meta,https://leetcode.com/problems/top-k-frequent-elements,LeetCode
+Product of Array Except Self,Medium,Array|Prefix Sum,Amazon|Apple|Meta,https://leetcode.com/problems/product-of-array-except-self,LeetCode
+Valid Sudoku,Medium,Array|Hash Table|Matrix,Apple|Uber,https://leetcode.com/problems/valid-sudoku,LeetCode
+Longest Consecutive Sequence,Medium,Array|Hash Table|Union Find,Google|Spotify,https://leetcode.com/problems/longest-consecutive-sequence,LeetCode
+Majority Element,Easy,Array|Hash Table|Divide and Conquer,Amazon|Google,https://leetcode.com/problems/majority-element,LeetCode
+Subarray Sum Equals K,Medium,Array|Hash Table|Prefix Sum,Meta|Google,https://leetcode.com/problems/subarray-sum-equals-k,LeetCode
+Valid Palindrome,Easy,Two Pointers|String,Meta|Microsoft,https://leetcode.com/problems/valid-palindrome,LeetCode
+Two Sum II - Input Array Is Sorted,Medium,Array|Two Pointers|Binary Search,Amazon|Apple,https://leetcode.com/problems/two-sum-ii-input-array-is-sorted,LeetCode
+3Sum,Medium,Array|Two Pointers|Sorting,Meta|Amazon|Google,https://leetcode.com/problems/3sum,LeetCode
+Container With Most Water,Medium,Array|Two Pointers|Greedy,Google|Amazon|Apple,https://leetcode.com/problems/container-with-most-water,LeetCode
+Trapping Rain Water,Hard,Array|Two Pointers|Stack|Dynamic Programming,Google|Amazon|Meta|Goldman Sachs,https://leetcode.com/problems/trapping-rain-water,LeetCode
+Move Zeroes,Easy,Array|Two Pointers,Meta|Amazon,https://leetcode.com/problems/move-zeroes,LeetCode
+Sort Colors,Medium,Array|Two Pointers|Sorting,Microsoft|Amazon,https://leetcode.com/problems/sort-colors,LeetCode
+Remove Duplicates from Sorted Array,Easy,Array|Two Pointers,Meta|Microsoft,https://leetcode.com/problems/remove-duplicates-from-sorted-array,LeetCode
+4Sum,Medium,Array|Two Pointers|Sorting,Amazon|Google,https://leetcode.com/problems/4sum,LeetCode
+Backspace String Compare,Easy,Two Pointers|Stack|String,Google,https://leetcode.com/problems/backspace-string-compare,LeetCode
+Best Time to Buy and Sell Stock,Easy,Array|Dynamic Programming|Sliding Window,Amazon|Meta|Google|Microsoft,https://leetcode.com/problems/best-time-to-buy-and-sell-stock,LeetCode
+Longest Substring Without Repeating Characters,Medium,Hash Table|String|Sliding Window,Amazon|Meta|Google|Bloomberg,https://leetcode.com/problems/longest-substring-without-repeating-characters,LeetCode
+Longest Repeating Character Replacement,Medium,Hash Table|String|Sliding Window,Google|Amazon,https://leetcode.com/problems/longest-repeating-character-replacement,LeetCode
+Permutation in String,Medium,Hash Table|Two Pointers|String|Sliding Window,Microsoft|Meta,https://leetcode.com/problems/permutation-in-string,LeetCode
+Minimum Window Substring,Hard,Hash Table|String|Sliding Window,Meta|Google|Amazon|LinkedIn,https://leetcode.com/problems/minimum-window-substring,LeetCode
+Sliding Window Maximum,Hard,Array|Queue|Sliding Window|Heap,Amazon|Google|Uber,https://leetcode.com/problems/sliding-window-maximum,LeetCode
+Minimum Size Subarray Sum,Medium,Array|Binary Search|Sliding Window,Goldman Sachs|Meta,https://leetcode.com/problems/minimum-size-subarray-sum,LeetCode
+Fruit Into Baskets,Medium,Array|Hash Table|Sliding Window,Google,https://leetcode.com/problems/fruit-into-baskets,LeetCode
+Max Consecutive Ones III,Medium,Array|Binary Search|Sliding Window,Meta|Google,https://leetcode.com/problems/max-consecutive-ones-iii,LeetCode
+Find All Anagrams in a String,Medium,Hash Table|String|Sliding Window,Amazon|Meta,https://leetcode.com/problems/find-all-anagrams-in-a-string,LeetCode
+Valid Parentheses,Easy,String|Stack,Amazon|Google|Meta|Microsoft,https://leetcode.com/problems/valid-parentheses,LeetCode
+Min Stack,Medium,Stack|Design,Amazon|Bloomberg|Microsoft,https://leetcode.com/problems/min-stack,LeetCode
+Evaluate Reverse Polish Notation,Medium,Array|Math|Stack,Amazon|LinkedIn,https://leetcode.com/problems/evaluate-reverse-polish-notation,LeetCode
+Daily Temperatures,Medium,Array|Stack|Monotonic Stack,Amazon|Meta|Google,https://leetcode.com/problems/daily-temperatures,LeetCode
+Car Fleet,Medium,Array|Stack|Sorting|Monotonic Stack,Google,https://leetcode.com/problems/car-fleet,LeetCode
+Largest Rectangle in Histogram,Hard,Array|Stack|Monotonic Stack,Google|Amazon|Apple,https://leetcode.com/problems/largest-rectangle-in-histogram,LeetCode
+Implement Queue using Stacks,Easy,Stack|Design|Queue,Microsoft|Amazon,https://leetcode.com/problems/implement-queue-using-stacks,LeetCode
+Decode String,Medium,String|Stack|Recursion,Google|Bloomberg,https://leetcode.com/problems/decode-string,LeetCode
+Asteroid Collision,Medium,Array|Stack|Simulation,Amazon|DoorDash,https://leetcode.com/problems/asteroid-collision,LeetCode
+Basic Calculator,Hard,Math|String|Stack|Recursion,Google|Meta,https://leetcode.com/problems/basic-calculator,LeetCode
+Binary Search,Easy,Array|Binary Search,Apple|Microsoft,https://leetcode.com/problems/binary-search,LeetCode
+Search a 2D Matrix,Medium,Array|Binary Search|Matrix,Amazon|Microsoft,https://leetcode.com/problems/search-a-2d-matrix,LeetCode
+Koko Eating Bananas,Medium,Array|Binary Search,Google|Airbnb,https://leetcode.com/problems/koko-eating-bananas,LeetCode
+Find Minimum in Rotated Sorted Array,Medium,Array|Binary Search,Amazon|Microsoft,https://leetcode.com/problems/find-minimum-in-rotated-sorted-array,LeetCode
+Search in Rotated Sorted Array,Medium,Array|Binary Search,Amazon|Meta|Google|Microsoft,https://leetcode.com/problems/search-in-rotated-sorted-array,LeetCode
+Time Based Key-Value Store,Medium,Hash Table|String|Binary Search|Design,Netflix|Google|Apple,https://leetcode.com/problems/time-based-key-value-store,LeetCode
+Median of Two Sorted Arrays,Hard,Array|Binary Search|Divide and Conquer,Google|Amazon|Goldman Sachs,https://leetcode.com/problems/median-of-two-sorted-arrays,LeetCode
+Find Peak Element,Medium,Array|Binary Search,Meta|Google,https://leetcode.com/problems/find-peak-element,LeetCode
+First Bad Version,Easy,Binary Search|Interactive,Meta|Google,https://leetcode.com/problems/first-bad-version,LeetCode
+Capacity To Ship Packages Within D Days,Medium,Array|Binary Search,Google|Amazon,https://leetcode.com/problems/capacity-to-ship-packages-within-d-days,LeetCode
+Reverse Linked List,Easy,Linked List|Recursion,Amazon|Google|Apple|Microsoft,https://leetcode.com/problems/reverse-linked-list,LeetCode
+Merge Two Sorted Lists,Easy,Linked List|Recursion,Amazon|Apple|Microsoft,https://leetcode.com/problems/merge-two-sorted-lists,LeetCode
+Reorder List,Medium,Linked List|Two Pointers|Stack,Meta|Amazon,https://leetcode.com/problems/reorder-list,LeetCode
+Remove Nth Node From End of List,Medium,Linked List|Two Pointers,Meta|Google|Amazon,https://leetcode.com/problems/remove-nth-node-from-end-of-list,LeetCode
+Copy List with Random Pointer,Medium,Hash Table|Linked List,Amazon|Microsoft|Bloomberg,https://leetcode.com/problems/copy-list-with-random-pointer,LeetCode
+Add Two Numbers,Medium,Linked List|Math|Recursion,Amazon|Microsoft|Google|Meta,https://leetcode.com/problems/add-two-numbers,LeetCode
+Linked List Cycle,Easy,Hash Table|Linked List|Two Pointers,Amazon|Microsoft,https://leetcode.com/problems/linked-list-cycle,LeetCode
+Find the Duplicate Number,Medium,Array|Two Pointers|Binary Search|Bit Manipulation,Amazon|Google,https://leetcode.com/problems/find-the-duplicate-number,LeetCode
+LRU Cache,Medium,Hash Table|Linked List|Design|Doubly-Linked List,Amazon|Google|Meta|Microsoft|Apple|Uber,https://leetcode.com/problems/lru-cache,LeetCode
+Merge k Sorted Lists,Hard,Linked List|Divide and Conquer|Heap,Meta|Amazon|Google|Uber,https://leetcode.com/problems/merge-k-sorted-lists,LeetCode
+Reverse Nodes in k-Group,Hard,Linked List|Recursion,Amazon|Google|Microsoft,https://leetcode.com/problems/reverse-nodes-in-k-group,LeetCode
+Invert Binary Tree,Easy,Tree|Depth-First Search|Breadth-First Search|Binary Tree,Google|Amazon,https://leetcode.com/problems/invert-binary-tree,LeetCode
+Maximum Depth of Binary Tree,Easy,Tree|Depth-First Search|Breadth-First Search|Binary Tree,Amazon|Apple,https://leetcode.com/problems/maximum-depth-of-binary-tree,LeetCode
+Diameter of Binary Tree,Easy,Tree|Depth-First Search|Binary Tree,Meta|Amazon,https://leetcode.com/problems/diameter-of-binary-tree,LeetCode
+Balanced Binary Tree,Easy,Tree|Depth-First Search|Binary Tree,Amazon|Google,https://leetcode.com/problems/balanced-binary-tree,LeetCode
+Same Tree,Easy,Tree|Depth-First Search|Breadth-First Search|Binary Tree,Google|Amazon,https://leetcode.com/problems/same-tree,LeetCode
+Subtree of Another Tree,Easy,Tree|Depth-First Search|String Matching|Binary Tree,Amazon|Meta,https://leetcode.com/problems/subtree-of-another-tree,LeetCode
+Lowest Common Ancestor of a Binary Search Tree,Medium,Tree|Depth-First Search|Binary Search Tree,Amazon|Meta,https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-search-tree,LeetCode
+Binary Tree Level Order Traversal,Medium,Tree|Breadth-First Search|Binary Tree,Amazon|Meta|Microsoft,https://leetcode.com/problems/binary-tree-level-order-traversal,LeetCode
+Binary Tree Right Side View,Medium,Tree|Depth-First Search|Breadth-First Search|Binary Tree,Meta|Amazon,https://leetcode.com/problems/binary-tree-right-side-view,LeetCode
+Count Good Nodes in Binary Tree,Medium,Tree|Depth-First Search|Breadth-First Search|Binary Tree,Microsoft,https://leetcode.com/problems/count-good-nodes-in-binary-tree,LeetCode
+Validate Binary Search Tree,Medium,Tree|Depth-First Search|Binary Search Tree|Binary Tree,Amazon|Meta|Bloomberg,https://leetcode.com/problems/validate-binary-search-tree,LeetCode
+Kth Smallest Element in a BST,Medium,Tree|Depth-First Search|Binary Search Tree|Binary Tree,Amazon|Uber,https://leetcode.com/problems/kth-smallest-element-in-a-bst,LeetCode
+Construct Binary Tree from Preorder and Inorder Traversal,Medium,Array|Hash Table|Divide and Conquer|Tree|Binary Tree,Amazon|Microsoft,https://leetcode.com/problems/construct-binary-tree-from-preorder-and-inorder-traversal,LeetCode
+Binary Tree Maximum Path Sum,Hard,Dynamic Programming|Tree|Depth-First Search|Binary Tree,Meta|Google|Amazon,https://leetcode.com/problems/binary-tree-maximum-path-sum,LeetCode
+Serialize and Deserialize Binary Tree,Hard,String|Tree|Depth-First Search|Breadth-First Search|Design,Meta|Amazon|Google|Uber,https://leetcode.com/problems/serialize-and-deserialize-binary-tree,LeetCode
+Implement Trie (Prefix Tree),Medium,Hash Table|String|Design|Trie,Amazon|Google|Twitter,https://leetcode.com/problems/implement-trie-prefix-tree,LeetCode
+Design Add and Search Words Data Structure,Medium,String|Depth-First Search|Design|Trie,Meta|Amazon,https://leetcode.com/problems/design-add-and-search-words-data-structure,LeetCode
+Word Search II,Hard,Array|String|Backtracking|Trie|Matrix,Amazon|Uber|Microsoft|Google,https://leetcode.com/problems/word-search-ii,LeetCode
+Kth Largest Element in a Stream,Easy,Tree|Design|Binary Search Tree|Heap,Amazon,https://leetcode.com/problems/kth-largest-element-in-a-stream,LeetCode
+Last Stone Weight,Easy,Array|Heap,Amazon,https://leetcode.com/problems/last-stone-weight,LeetCode
+K Closest Points to Origin,Medium,Array|Math|Divide and Conquer|Geometry|Sorting|Heap,Meta|Amazon|Google,https://leetcode.com/problems/k-closest-points-to-origin,LeetCode
+Kth Largest Element in an Array,Medium,Array|Divide and Conquer|Sorting|Heap|Quickselect,Meta|Amazon|Google,https://leetcode.com/problems/kth-largest-element-in-an-array,LeetCode
+Task Scheduler,Medium,Array|Hash Table|Greedy|Sorting|Heap|Counting,Meta|Amazon,https://leetcode.com/problems/task-scheduler,LeetCode
+Design Twitter,Medium,Hash Table|Linked List|Design|Heap,Twitter|Amazon,https://leetcode.com/problems/design-twitter,LeetCode
+Find Median from Data Stream,Hard,Two Pointers|Design|Sorting|Heap|Data Stream,Google|Amazon|Apple|Uber,https://leetcode.com/problems/find-median-from-data-stream,LeetCode
+Subsets,Medium,Array|Backtracking|Bit Manipulation,Meta|Amazon|Google,https://leetcode.com/problems/subsets,LeetCode
+Combination Sum,Medium,Array|Backtracking,Airbnb|Amazon|Google,https://leetcode.com/problems/combination-sum,LeetCode
+Permutations,Medium,Array|Backtracking,Microsoft|Amazon|Google,https://leetcode.com/problems/permutations,LeetCode
+Subsets II,Medium,Array|Backtracking|Bit Manipulation,Amazon,https://leetcode.com/problems/subsets-ii,LeetCode
+Combination Sum II,Medium,Array|Backtracking,Amazon|Snapchat,https://leetcode.com/problems/combination-sum-ii,LeetCode
+Word Search,Medium,Array|String|Backtracking|Matrix,Amazon|Bloomberg|Microsoft,https://leetcode.com/problems/word-search,LeetCode
+Palindrome Partitioning,Medium,String|Dynamic Programming|Backtracking,Amazon|Google,https://leetcode.com/problems/palindrome-partitioning,LeetCode
+Letter Combinations of a Phone Number,Medium,Hash Table|String|Backtracking,Amazon|Uber|Meta,https://leetcode.com/problems/letter-combinations-of-a-phone-number,LeetCode
+N-Queens,Hard,Array|Backtracking,Google|Amazon,https://leetcode.com/problems/n-queens,LeetCode
+Number of Islands,Medium,Array|Depth-First Search|Breadth-First Search|Union Find|Matrix,Amazon|Google|Bloomberg|Meta|Microsoft,https://leetcode.com/problems/number-of-islands,LeetCode
+Clone Graph,Medium,Hash Table|Depth-First Search|Breadth-First Search|Graph,Meta|Amazon,https://leetcode.com/problems/clone-graph,LeetCode
+Max Area of Island,Medium,Array|Depth-First Search|Breadth-First Search|Union Find|Matrix,Amazon|Meta,https://leetcode.com/problems/max-area-of-island,LeetCode
+Pacific Atlantic Water Flow,Medium,Array|Depth-First Search|Breadth-First Search|Matrix,Google|Amazon,https://leetcode.com/problems/pacific-atlantic-water-flow,LeetCode
+Surrounded Regions,Medium,Array|Depth-First Search|Breadth-First Search|Union Find|Matrix,Google|Amazon,https://leetcode.com/problems/surrounded-regions,LeetCode
+Rotting Oranges,Medium,Array|Breadth-First Search|Matrix,Amazon|Microsoft|Uber,https://leetcode.com/problems/rotting-oranges,LeetCode
+Walls and Gates,Medium,Array|Breadth-First Search|Matrix,Meta|Google,https://leetcode.com/problems/walls-and-gates,LeetCode
+Course Schedule,Medium,Depth-First Search|Breadth-First Search|Graph|Topological Sort,Amazon|Google|Microsoft,https://leetcode.com/problems/course-schedule,LeetCode
+Course Schedule II,Medium,Depth-First Search|Breadth-First Search|Graph|Topological Sort,Amazon|Google,https://leetcode.com/problems/course-schedule-ii,LeetCode
+Redundant Connection,Medium,Depth-First Search|Breadth-First Search|Union Find|Graph,Google|Amazon,https://leetcode.com/problems/redundant-connection,LeetCode
+Number of Connected Components in an Undirected Graph,Medium,Depth-First Search|Breadth-First Search|Union Find|Graph,Google|Meta,https://leetcode.com/problems/number-of-connected-components-in-an-undirected-graph,LeetCode
+Graph Valid Tree,Medium,Depth-First Search|Breadth-First Search|Union Find|Graph,Google|Meta,https://leetcode.com/problems/graph-valid-tree,LeetCode
+Word Ladder,Hard,Hash Table|String|Breadth-First Search,Amazon|Google|Meta,https://leetcode.com/problems/word-ladder,LeetCode
+Climbing Stairs,Easy,Math|Dynamic Programming|Memoization,Amazon|Google|Apple,https://leetcode.com/problems/climbing-stairs,LeetCode
+Min Cost Climbing Stairs,Easy,Array|Dynamic Programming,Amazon|Apple,https://leetcode.com/problems/min-cost-climbing-stairs,LeetCode
+House Robber,Medium,Array|Dynamic Programming,Google|Amazon|Microsoft,https://leetcode.com/problems/house-robber,LeetCode
+House Robber II,Medium,Array|Dynamic Programming,Microsoft|Amazon,https://leetcode.com/problems/house-robber-ii,LeetCode
+Longest Palindromic Substring,Medium,String|Dynamic Programming,Amazon|Microsoft|Google|Meta,https://leetcode.com/problems/longest-palindromic-substring,LeetCode
+Palindromic Substrings,Medium,Two Pointers|String|Dynamic Programming,Meta|Google,https://leetcode.com/problems/palindromic-substrings,LeetCode
+Decode Ways,Medium,String|Dynamic Programming,Google|Amazon|Meta,https://leetcode.com/problems/decode-ways,LeetCode
+Coin Change,Medium,Array|Dynamic Programming|Breadth-First Search,Amazon|Bloomberg|Meta|Google,https://leetcode.com/problems/coin-change,LeetCode
+Maximum Product Subarray,Medium,Array|Dynamic Programming,Amazon|Google|Microsoft,https://leetcode.com/problems/maximum-product-subarray,LeetCode
+Word Break,Medium,Array|Hash Table|String|Dynamic Programming|Trie|Memoization,Amazon|Meta|Google|Bloomberg,https://leetcode.com/problems/word-break,LeetCode
+Longest Increasing Subsequence,Medium,Array|Binary Search|Dynamic Programming,Google|Amazon|Microsoft,https://leetcode.com/problems/longest-increasing-subsequence,LeetCode
+Partition Equal Subset Sum,Medium,Array|Dynamic Programming,Amazon|Meta,https://leetcode.com/problems/partition-equal-subset-sum,LeetCode
+Unique Paths,Medium,Math|Dynamic Programming|Combinatorics,Google|Amazon|Meta,https://leetcode.com/problems/unique-paths,LeetCode
+Longest Common Subsequence,Medium,String|Dynamic Programming,Amazon|Microsoft|Google,https://leetcode.com/problems/longest-common-subsequence,LeetCode
+Best Time to Buy and Sell Stock with Cooldown,Medium,Array|Dynamic Programming,Amazon|Google,https://leetcode.com/problems/best-time-to-buy-and-sell-stock-with-cooldown,LeetCode
+Coin Change II,Medium,Array|Dynamic Programming,Amazon|Bloomberg,https://leetcode.com/problems/coin-change-ii,LeetCode
+Target Sum,Medium,Array|Dynamic Programming|Backtracking,Meta|Amazon,https://leetcode.com/problems/target-sum,LeetCode
+Interleaving String,Medium,String|Dynamic Programming,Amazon|Google,https://leetcode.com/problems/interleaving-string,LeetCode
+Edit Distance,Medium,String|Dynamic Programming,Google|Amazon|Microsoft,https://leetcode.com/problems/edit-distance,LeetCode
+Burst Balloons,Hard,Array|Dynamic Programming,Google|Amazon,https://leetcode.com/problems/burst-balloons,LeetCode
+Regular Expression Matching,Hard,String|Dynamic Programming|Recursion,Google|Meta|Uber,https://leetcode.com/problems/regular-expression-matching,LeetCode
+Maximum Subarray,Medium,Array|Divide and Conquer|Dynamic Programming,Amazon|Apple|Microsoft|Google,https://leetcode.com/problems/maximum-subarray,LeetCode
+Jump Game,Medium,Array|Dynamic Programming|Greedy,Amazon|Google|Meta,https://leetcode.com/problems/jump-game,LeetCode
+Jump Game II,Medium,Array|Dynamic Programming|Greedy,Amazon|Google,https://leetcode.com/problems/jump-game-ii,LeetCode
+Gas Station,Medium,Array|Greedy,Google|Amazon,https://leetcode.com/problems/gas-station,LeetCode
+Hand of Straights,Medium,Array|Hash Table|Greedy|Sorting,Google,https://leetcode.com/problems/hand-of-straights,LeetCode
+Merge Triplets to Form Target Triplet,Medium,Array|Greedy,Amazon,https://leetcode.com/problems/merge-triplets-to-form-target-triplet,LeetCode
+Partition Labels,Medium,Hash Table|Two Pointers|String|Greedy,Amazon,https://leetcode.com/problems/partition-labels,LeetCode
+Valid Parenthesis String,Medium,String|Dynamic Programming|Stack|Greedy,Meta|Google,https://leetcode.com/problems/valid-parenthesis-string,LeetCode
+Insert Interval,Medium,Array,Google|Amazon|Meta,https://leetcode.com/problems/insert-interval,LeetCode
+Merge Intervals,Medium,Array|Sorting,Google|Meta|Amazon|Bloomberg,https://leetcode.com/problems/merge-intervals,LeetCode
+Non-overlapping Intervals,Medium,Array|Dynamic Programming|Greedy|Sorting,Amazon|Meta,https://leetcode.com/problems/non-overlapping-intervals,LeetCode
+Meeting Rooms,Easy,Array|Sorting,Amazon|Google|Meta,https://leetcode.com/problems/meeting-rooms,LeetCode
+Meeting Rooms II,Medium,Array|Two Pointers|Greedy|Sorting|Heap,Amazon|Google|Meta|Bloomberg,https://leetcode.com/problems/meeting-rooms-ii,LeetCode
+Minimum Number of Arrows to Burst Balloons,Medium,Array|Greedy|Sorting,Meta|Google,https://leetcode.com/problems/minimum-number-of-arrows-to-burst-balloons,LeetCode
+Rotate Image,Medium,Array|Math|Matrix,Amazon|Microsoft|Google,https://leetcode.com/problems/rotate-image,LeetCode
+Spiral Matrix,Medium,Array|Matrix|Simulation,Microsoft|Amazon|Apple,https://leetcode.com/problems/spiral-matrix,LeetCode
+Set Matrix Zeroes,Medium,Array|Hash Table|Matrix,Microsoft|Amazon,https://leetcode.com/problems/set-matrix-zeroes,LeetCode
+Happy Number,Easy,Hash Table|Math|Two Pointers,Amazon|Apple,https://leetcode.com/problems/happy-number,LeetCode
+Plus One,Easy,Array|Math,Google|Amazon,https://leetcode.com/problems/plus-one,LeetCode
+"Pow(x, n)",Medium,Math|Recursion,Meta|Google|Amazon,https://leetcode.com/problems/powx-n,LeetCode
+Multiply Strings,Medium,Math|String|Simulation,Meta|Google,https://leetcode.com/problems/multiply-strings,LeetCode
+Single Number,Easy,Array|Bit Manipulation,Amazon|Apple,https://leetcode.com/problems/single-number,LeetCode
+Number of 1 Bits,Easy,Divide and Conquer|Bit Manipulation,Apple|Microsoft,https://leetcode.com/problems/number-of-1-bits,LeetCode
+Counting Bits,Easy,Dynamic Programming|Bit Manipulation,Amazon|Apple,https://leetcode.com/problems/counting-bits,LeetCode
+Reverse Bits,Easy,Divide and Conquer|Bit Manipulation,Apple|Amazon,https://leetcode.com/problems/reverse-bits,LeetCode
+Missing Number,Easy,Array|Hash Table|Math|Binary Search|Bit Manipulation|Sorting,Amazon|Microsoft,https://leetcode.com/problems/missing-number,LeetCode
+Sum of Two Integers,Medium,Math|Bit Manipulation,Meta|Google,https://leetcode.com/problems/sum-of-two-integers,LeetCode
+Reverse Integer,Medium,Math,Google|Amazon|Apple,https://leetcode.com/problems/reverse-integer,LeetCode
+Cheapest Flights Within K Stops,Medium,Dynamic Programming|Depth-First Search|Breadth-First Search|Graph|Heap|Shortest Path,Amazon|Google,https://leetcode.com/problems/cheapest-flights-within-k-stops,LeetCode
+Network Delay Time,Medium,Depth-First Search|Breadth-First Search|Graph|Heap|Shortest Path,Google|Amazon,https://leetcode.com/problems/network-delay-time,LeetCode
+Min Cost to Connect All Points,Medium,Array|Union Find|Graph|Minimum Spanning Tree,Amazon|Meta,https://leetcode.com/problems/min-cost-to-connect-all-points,LeetCode
+Swim in Rising Water,Hard,Array|Binary Search|Depth-First Search|Breadth-First Search|Union Find|Heap|Matrix,Google|Amazon,https://leetcode.com/problems/swim-in-rising-water,LeetCode
+Alien Dictionary,Hard,Array|String|Depth-First Search|Breadth-First Search|Graph|Topological Sort,Meta|Google|Amazon|Twitter,https://leetcode.com/problems/alien-dictionary,LeetCode

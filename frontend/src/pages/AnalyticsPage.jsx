@@ -9,9 +9,10 @@ import DifficultyPieChart from '../components/analytics/DifficultyPieChart';
 import StreakCounter from '../components/analytics/StreakCounter';
 import ActivityTimeline from '../components/analytics/ActivityTimeline';
 import WeakTopicsAlert from '../components/analytics/WeakTopicsAlert';
+import MasteryAndRevision from '../components/analytics/MasteryAndRevision';
 import { ChartSkeleton } from '../components/common/SkeletonCard';
 
-export default function AnalyticsPage({ onSelectFilterTopic }) {
+export default function AnalyticsPage({ onSelectFilterTopic, onSelectProblem }) {
   const [year, setYear] = useState(new Date().getFullYear());
 
   const { data: heatmapData, isLoading: loadingHeatmap } = useQuery({
@@ -118,6 +119,9 @@ export default function AnalyticsPage({ onSelectFilterTopic }) {
           )}
         </div>
       </div>
+
+      {/* Topic Mastery Levels & Priority Revision Queue */}
+      <MasteryAndRevision onSelectTopic={onSelectFilterTopic} onSelectProblem={onSelectProblem} />
 
       {/* Topic Strength Chart */}
       {loadingTopics ? (

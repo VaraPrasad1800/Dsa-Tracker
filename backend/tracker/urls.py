@@ -1,4 +1,4 @@
-﻿from django.urls import path
+from django.urls import path
 from tracker import views
 
 urlpatterns = [
@@ -9,7 +9,12 @@ urlpatterns = [
     path('problems/by-company/<str:company_id>/', views.ProblemByCompanyView.as_view(), name='problem-by-company'),
     path('problems/<uuid:pk>/', views.ProblemDetailView.as_view(), name='problem-detail'),
     path('problems/<uuid:pk>/solution/', views.ProblemSolutionView.as_view(), name='problem-solution'),
-    
+
+    # V2: Judge — per-problem endpoints
+    path('problems/<uuid:pk>/submissions/', views.ProblemSubmissionsView.as_view(), name='problem-submissions'),
+    path('problems/<uuid:pk>/test-cases/', views.ProblemTestCasesView.as_view(), name='problem-test-cases'),
+    path('problems/<uuid:pk>/language-template/', views.LanguageTemplateView.as_view(), name='problem-language-template'),
+
     path('user-progress/', views.UserProgressView.as_view(), name='user-progress-create'),
     path('user-progress/stats/', views.UserProgressStatsView.as_view(), name='user-progress-stats'),
     path('user-progress/due-today/', views.DueTodayView.as_view(), name='due-today'),
@@ -25,6 +30,12 @@ urlpatterns = [
     path('analytics/streaks/', views.StreaksView.as_view(), name='analytics-streaks'),
     path('analytics/difficulty-breakdown/', views.DifficultyBreakdownView.as_view(), name='analytics-difficulty-breakdown'),
     path('analytics/timeline/', views.TimelineView.as_view(), name='analytics-timeline'),
+    path('analytics/dashboard/', views.AnalyticsDashboardView.as_view(), name='analytics-dashboard'),
+
+    # V2: Enhanced Analytics
+    path('analytics/mastery/', views.TopicMasteryView.as_view(), name='analytics-mastery'),
+    path('analytics/revision-queue/', views.RevisionQueueView.as_view(), name='analytics-revision-queue'),
+    path('analytics/company-track/<str:company_slug>/', views.CompanyTrackView.as_view(), name='analytics-company-track'),
 
     # Phase 4: Reminders
     path('reminders/digest/', views.DailyDigestView.as_view(), name='reminders-digest'),
@@ -55,6 +66,33 @@ urlpatterns = [
     path('bookmarks/toggle/', views.BookmarkToggleView.as_view(), name='bookmark-toggle'),
     path('bookmarks/', views.BookmarkListView.as_view(), name='bookmark-list'),
 
-    # Analytics Dashboard
-    path('analytics/dashboard/', views.AnalyticsDashboardView.as_view(), name='analytics-dashboard'),
+    # V2: Online Judge
+    path('run-code/', views.RunCodeView.as_view(), name='run-code'),
+    path('submit/', views.SubmitCodeView.as_view(), name='submit-code'),
+    path('languages/', views.LanguagesView.as_view(), name='languages'),
+    path('submissions/<uuid:pk>/', views.SubmissionDetailView.as_view(), name='submission-detail'),
+
+    # V2: Challenges
+    path('challenges/', views.ChallengeListView.as_view(), name='challenge-list'),
+    path('challenges/<uuid:pk>/', views.ChallengeDetailView.as_view(), name='challenge-detail'),
+    path('challenges/<uuid:pk>/complete/', views.ChallengeCompleteView.as_view(), name='challenge-complete'),
+
+    # V2: Points & Achievements
+    path('points/', views.UserPointsView.as_view(), name='user-points'),
+    path('achievements/', views.AchievementListView.as_view(), name='achievement-list'),
+
+    # V2: Notifications
+    path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
+    path('notifications/read-all/', views.NotificationReadAllView.as_view(), name='notification-read-all'),
+    path('notifications/<uuid:pk>/read/', views.NotificationReadView.as_view(), name='notification-read'),
+
+    # V2: Interview Simulation
+    path('interview-sessions/', views.InterviewSessionListView.as_view(), name='interview-session-list'),
+    path('interview-sessions/<uuid:pk>/', views.InterviewSessionDetailView.as_view(), name='interview-session-detail'),
+    path('interview-sessions/<uuid:pk>/end/', views.InterviewSessionEndView.as_view(), name='interview-session-end'),
+    path('interview-sessions/<uuid:session_pk>/problems/<uuid:problem_pk>/solve/',
+         views.InterviewProblemSolveView.as_view(), name='interview-problem-solve'),
+
+    # V2: DSA Patterns
+    path('patterns/', views.PatternListView.as_view(), name='pattern-list'),
 ]

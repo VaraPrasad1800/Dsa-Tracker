@@ -8,7 +8,7 @@ import LeitnerBoxGrid from '../components/spaced_repetition/LeitnerBoxGrid';
 import EmptyState from '../components/common/EmptyState';
 import { toast } from '../components/common/Toast';
 
-export default function TodaysReviewPage({ onNavigateToProblems }) {
+export default function TodaysReviewPage({ onNavigateToProblems, onSolve }) {
   const queryClient = useQueryClient();
   const [completedCount, setCompletedCount] = useState(0);
 
@@ -141,6 +141,7 @@ export default function TodaysReviewPage({ onNavigateToProblems }) {
           <ReviewProblemCard
             item={currentItem}
             onAction={handleAction}
+            onSolve={onSolve}
             loading={updateStatusMutation.isPending}
           />
         </div>

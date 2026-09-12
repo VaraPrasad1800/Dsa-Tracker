@@ -16,18 +16,25 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 
 from tracker.models import (
     Tag, Company, Problem, UserProblemProgress, ReviewHistory,
-    DailyStat, UserStreak, StudyPlan, StudyPlanDay, UserProfile, Solution
+    DailyStat, UserStreak, StudyPlan, StudyPlanDay, UserProfile, Solution,
+    Submission, Challenge, Achievement, Notification, InterviewSession,
+    InterviewProblem, DSAPattern, TestCase, UserPoints,
 )
 from tracker.serializers import (
-    TagSerializer, CompanySerializer, ProblemSerializer,
+    TagSerializer, CompanySerializer, ProblemSerializer, ProblemListSerializer,
     UserProblemProgressSerializer, ReviewHistorySerializer,
-    StudyPlanSerializer, BookmarkedProblemSerializer, SolutionSerializer
+    StudyPlanSerializer, BookmarkedProblemSerializer, SolutionSerializer,
+    SubmissionSerializer, SubmissionDetailSerializer,
+    ChallengeSerializer, AchievementSerializer, NotificationSerializer,
+    InterviewSessionSerializer, DSAPatternSerializer, TestCaseSerializer,
+    UserPointsSerializer,
 )
 from tracker.scraper import fetch_solution
 from tracker.services.leitner import update_problem_progress, get_leitner_box_stats
 from tracker.services.analytics import (
     get_user_heatmap, get_user_topic_breakdown, get_user_streaks,
-    get_user_difficulty_breakdown, get_user_timeline, get_user_dashboard
+    get_user_difficulty_breakdown, get_user_timeline, get_user_dashboard,
+    get_topic_mastery_levels, get_revision_queue, get_company_track,
 )
 from tracker.services.study_plan import generate_study_plan, get_study_plan_progress
 from tracker.services.reminders import get_or_create_daily_review_digest
@@ -114,13 +121,21 @@ class ProblemListView(APIView):
                 q |= Q(companies__slug__iexact=c) | Q(companies__name__iexact=c)
             queryset = queryset.filter(q)
 
-        search = request.query_params.get('search')
+        search = request.query_params.get('search', '')
+        exact_number_match = None
         if search:
-            queryset = queryset.filter(
+            search = search.strip()
+            search_query = (
                 Q(title__icontains=search) |
                 Q(tags__name__icontains=search) |
                 Q(companies__name__icontains=search)
             )
+            clean_search = search.lstrip('#').strip()
+            if clean_search.isdigit():
+                q_num = int(clean_search)
+                search_query |= Q(question_number=q_num)
+                exact_number_match = q_num
+            queryset = queryset.filter(search_query)
 
         # Multi-select status (requires a logged-in user for per-user progress)
         status_filters = multi_values('status')
@@ -141,52 +156,103 @@ class ProblemListView(APIView):
         if request.query_params.get('bookmarked') == 'true' and user:
             queryset = queryset.filter(bookmarked_by=user)
 
+        # Enforce distinct to eliminate Many-to-Many row duplication from tags/companies joins
+        queryset = queryset.distinct()
+
         # Random mode: no company selected, homepage shows a shuffled sample.
         # ?sort=random or ?random=true returns a randomized set.
         random_mode = request.query_params.get('random') == 'true' or request.query_params.get('sort') == 'random'
         if random_mode:
             queryset = queryset.order_by('?')
         else:
-            # Sorting: added date (newest first default is fine), last updated, frequency, difficulty
+            # Deterministic sorting with question_number tie-breaker for stable pagination
             sort = request.query_params.get('sort')
             order_map = {
-                'frequency': '-frequency',
-                'created': '-created_at',
-                'updated': '-updated_at',
-                'difficulty_asc': 'difficulty',
-                'difficulty_desc': '-difficulty',
-                'title': 'title',
-                'frequency_asc': 'frequency',
+                'number': ('question_number',),
+                'number_desc': ('-question_number',),
+                'question_number': ('question_number',),
+                '-question_number': ('-question_number',),
+                'frequency': ('-frequency', 'question_number'),
+                'frequency_asc': ('frequency', 'question_number'),
+                'created': ('-created_at', 'question_number'),
+                'updated': ('-updated_at', 'question_number'),
+                'difficulty_asc': ('difficulty', 'question_number'),
+                'difficulty_desc': ('-difficulty', 'question_number'),
+                'title': ('title', 'question_number'),
             }
-            order_field = order_map.get(sort, 'title')
-            queryset = queryset.distinct().order_by(order_field)
+            order_fields = order_map.get(sort, ('question_number',))
+            if exact_number_match is not None:
+                queryset = queryset.order_by(
+                    Case(When(question_number=exact_number_match, then=0), default=1),
+                    *order_fields
+                )
+            else:
+                queryset = queryset.order_by(*order_fields)
 
-        # Filter counts summary for pills
-        all_problems = Problem.objects.all()
-        user_progresses = UserProblemProgress.objects.filter(user=user) if user else UserProblemProgress.objects.none()
-        solved_count = user_progresses.filter(status='SOLVED').count()
-        revisit_count = user_progresses.filter(status='NEEDS_REVISIT').count()
-        skipped_count = user_progresses.filter(status='SKIPPED').count()
-        total_count = all_problems.count()
+        # Filter counts summary for pills — single-query aggregation
+        counts_agg = Problem.objects.aggregate(
+            total=Count('id'),
+            easy=Count('id', filter=Q(difficulty='Easy')),
+            medium=Count('id', filter=Q(difficulty='Medium')),
+            hard=Count('id', filter=Q(difficulty='Hard')),
+        )
+        total_count = counts_agg['total'] or 0
+
+        if user:
+            prog_agg = UserProblemProgress.objects.filter(user=user).aggregate(
+                solved=Count('id', filter=Q(status='SOLVED')),
+                needs_revisit=Count('id', filter=Q(status='NEEDS_REVISIT')),
+                skipped=Count('id', filter=Q(status='SKIPPED')),
+            )
+            solved_count = prog_agg['solved'] or 0
+            revisit_count = prog_agg['needs_revisit'] or 0
+            skipped_count = prog_agg['skipped'] or 0
+            user_profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
+            bookmarked_count = user_profile.bookmarked_problems.count() if user_profile else 0
+        else:
+            user_profile = None
+            solved_count = 0
+            revisit_count = 0
+            skipped_count = 0
+            bookmarked_count = 0
+
         unsolved_count = max(0, total_count - (solved_count + revisit_count + skipped_count))
 
         filter_counts = {
             'total': total_count,
-            'easy': all_problems.filter(difficulty='Easy').count(),
-            'medium': all_problems.filter(difficulty='Medium').count(),
-            'hard': all_problems.filter(difficulty='Hard').count(),
+            'easy': counts_agg['easy'] or 0,
+            'medium': counts_agg['medium'] or 0,
+            'hard': counts_agg['hard'] or 0,
             'solved': solved_count,
             'unsolved': unsolved_count,
             'needs_revisit': revisit_count,
             'skipped': skipped_count,
-            'bookmarked': (
-                UserProfile.objects.filter(user=user).values('bookmarked_problems').count() if user else 0
-            ),
+            'bookmarked': bookmarked_count,
         }
 
         paginator = ProblemPagination()
         page = paginator.paginate_queryset(queryset, request)
-        serializer = ProblemSerializer(page, many=True, context={'request': request})
+
+        # Batch preload user progress and bookmarks for this page to eliminate N+1 queries
+        if user and page:
+            page_problem_ids = [p.id for p in page]
+            user_progress_map = {
+                up.problem_id: up
+                for up in UserProblemProgress.objects.filter(user=user, problem_id__in=page_problem_ids)
+            }
+            bookmarked_id_set = set(
+                user_profile.bookmarked_problems.filter(id__in=page_problem_ids).values_list('id', flat=True)
+            ) if user_profile else set()
+        else:
+            user_progress_map = {}
+            bookmarked_id_set = set()
+
+        serializer_context = {
+            'request': request,
+            'user_progress_map': user_progress_map,
+            'bookmarked_id_set': bookmarked_id_set,
+        }
+        serializer = ProblemListSerializer(page, many=True, context=serializer_context)
         response = paginator.get_paginated_response(serializer.data)
         response.data['counts'] = filter_counts
         return response
@@ -199,6 +265,13 @@ class ProblemDetailView(APIView):
             problem = Problem.objects.prefetch_related('tags', 'companies').get(pk=pk)
         except Problem.DoesNotExist:
             return Response({'error': 'Problem not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not problem.is_judge_ready and problem.leetcode_id:
+            from tracker.services.problem_hydration_service import hydrate_problem_contract
+            try:
+                problem, _, _ = hydrate_problem_contract(problem)
+            except Exception:
+                pass
 
         serializer = ProblemSerializer(problem, context={'request': request})
         return Response(serializer.data)
@@ -214,7 +287,7 @@ class ProblemSolutionView(APIView):
       it tries a live fetch via tracker.scraper.fetch_solution and updates
       the cache. Never proxies raw HTML to the client.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request, pk):
         try:
@@ -223,9 +296,25 @@ class ProblemSolutionView(APIView):
             return Response({'available': False, 'message': 'Problem not found.'},
                             status=status.HTTP_404_NOT_FOUND)
 
-        if not problem.leetcode_id:
-            return Response({'available': False, 'message': 'No LeetCode ID for this problem; solution unavailable.'},
-                            status=status.HTTP_404_NOT_FOUND)
+        def build_solution_data(sol):
+            code_by_lang = dict(sol.code_by_language or {})
+            if sol.language and sol.code and sol.language not in code_by_lang:
+                code_by_lang[sol.language] = sol.code
+            return {
+                'available': True,
+                'question_number': sol.question_number or problem.leetcode_id or problem.question_number,
+                'title': sol.title,
+                'description': sol.description or problem.description,
+                'code': sol.code,
+                'language': sol.language,
+                'code_by_language': code_by_lang,
+                'explanation': sol.explanation,
+                'solution': sol.explanation,
+                'time_complexity': sol.time_complexity,
+                'space_complexity': sol.space_complexity,
+                'source_url': sol.source_url,
+                'solution_source_url': sol.solution_source_url,
+            }
 
         cached = None
         try:
@@ -234,25 +323,18 @@ class ProblemSolutionView(APIView):
             cached = None
 
         # Serve fresh successful cache directly — skip fetch entirely
-        if cached and cached.is_fresh:
-            return Response({
-                'available': True,
-                'question_number': cached.question_number or problem.leetcode_id,
-                'title': cached.title,
-                'description': cached.description or problem.description,
-                'code': cached.code,
-                'language': cached.language,
-                'explanation': cached.explanation,
-                'solution': cached.explanation,
-                'time_complexity': cached.time_complexity,
-                'space_complexity': cached.space_complexity,
-                'source_url': cached.source_url,
-                'solution_source_url': cached.solution_source_url,
-            })
+        if cached and cached.is_fresh and not cached.fetch_failed and (cached.code or cached.code_by_language):
+            return Response(build_solution_data(cached))
+
+        if not problem.leetcode_id:
+            if cached and not cached.fetch_failed and (cached.code or cached.code_by_language):
+                return Response(build_solution_data(cached))
+            return Response({'available': False, 'message': 'No LeetCode ID for this problem; solution unavailable.'},
+                            status=status.HTTP_404_NOT_FOUND)
 
         # If a failed record exists but was attempted recently, don't hammer upstream again.
         # should_retry_failed is True only after 1 hour since the last failure.
-        if cached and cached.fetch_failed and not cached.should_retry_failed:
+        if cached and cached.fetch_failed and not getattr(cached, 'should_retry_failed', True):
             return Response(
                 {'available': False, 'message': 'Solution temporarily unavailable. Please try again later.'},
                 status=status.HTTP_404_NOT_FOUND,
@@ -270,10 +352,11 @@ class ProblemSolutionView(APIView):
             sol, _ = Solution.objects.update_or_create(
                 problem=problem,
                 defaults={
-                    'question_number': fetched.get('question_number') or problem.leetcode_id,
+                    'question_number': fetched.get('question_number') or problem.leetcode_id or problem.question_number,
                     'title': fetched.get('title') or problem.title,
                     'description': desc,
                     'code': fetched.get('code') or '# Solution not available',
+                    'code_by_language': fetched.get('code_by_language') or {},
                     'language': fetched.get('language') or 'python',
                     'explanation': fetched.get('explanation') or '',
                     'time_complexity': fetched.get('time_complexity') or '',
@@ -284,20 +367,7 @@ class ProblemSolutionView(APIView):
                     'fetch_error': '',
                 },
             )
-            return Response({
-                'available': True,
-                'question_number': sol.question_number or problem.leetcode_id,
-                'title': sol.title,
-                'description': sol.description,
-                'code': sol.code,
-                'language': sol.language,
-                'explanation': sol.explanation,
-                'solution': sol.explanation,
-                'time_complexity': sol.time_complexity,
-                'space_complexity': sol.space_complexity,
-                'source_url': sol.source_url,
-                'solution_source_url': sol.solution_source_url,
-            })
+            return Response(build_solution_data(sol))
 
         # Fetch failed — record failure (allows retry after 1 hour via should_retry_failed)
         err_msg = 'Upstream fetch failed or returned no content.'
@@ -402,26 +472,53 @@ class ProblemByCompanyView(APIView):
         if request.query_params.get('bookmarked') == 'true' and user:
             queryset = queryset.filter(bookmarked_by=user)
 
+        queryset = queryset.distinct()
+
         random_mode = request.query_params.get('random') == 'true' or request.query_params.get('sort') == 'random'
         if random_mode:
             queryset = queryset.order_by('?')
         else:
             sort = request.query_params.get('sort')
             order_map = {
-                'frequency': '-frequency',
-                'created': '-created_at',
-                'updated': '-updated_at',
-                'title': 'title',
-                'frequency_asc': 'frequency',
+                'frequency': ('-frequency', 'question_number'),
+                'created': ('-created_at', 'question_number'),
+                'updated': ('-updated_at', 'question_number'),
+                'title': ('title', 'question_number'),
+                'frequency_asc': ('frequency', 'question_number'),
+                'question_number': ('question_number',),
+                '-question_number': ('-question_number',),
+                'difficulty_asc': ('difficulty', 'question_number'),
+                'difficulty_desc': ('-difficulty', 'question_number'),
             }
-            order_field = order_map.get(sort, '-frequency')
-            queryset = queryset.distinct().order_by(order_field)
+            order_fields = order_map.get(sort, ('-frequency', 'question_number'))
+            queryset = queryset.order_by(*order_fields)
 
         paginator = ProblemPagination()
         page = paginator.paginate_queryset(queryset, request)
-        serializer = ProblemSerializer(page, many=True, context={'request': request})
+
+        # Batch preload user progress and bookmarks for this page to eliminate N+1 queries
+        if user and page:
+            page_problem_ids = [p.id for p in page]
+            user_progress_map = {
+                up.problem_id: up
+                for up in UserProblemProgress.objects.filter(user=user, problem_id__in=page_problem_ids)
+            }
+            user_profile = getattr(user, 'profile', None) or UserProfile.objects.filter(user=user).first()
+            bookmarked_id_set = set(
+                user_profile.bookmarked_problems.filter(id__in=page_problem_ids).values_list('id', flat=True)
+            ) if user_profile else set()
+        else:
+            user_progress_map = {}
+            bookmarked_id_set = set()
+
+        serializer_context = {
+            'request': request,
+            'user_progress_map': user_progress_map,
+            'bookmarked_id_set': bookmarked_id_set,
+        }
+        serializer = ProblemListSerializer(page, many=True, context=serializer_context)
         response = paginator.get_paginated_response(serializer.data)
-        response.data['company'] = CompanySerializer(company).data
+        response.data['company'] = CompanySerializer(company, context={'request': request}).data
         return response
 
 
@@ -1141,3 +1238,480 @@ class AnalyticsDashboardView(APIView):
     def get(self, request):
         dashboard = get_user_dashboard(request.user)
         return Response(dashboard)
+
+
+# ============================================================================
+# V2 VIEWS — Online Judge
+# ============================================================================
+
+class RunCodeView(APIView):
+    """
+    POST /api/run-code/
+    Execute code with custom stdin. Does NOT alter any progress or save a Submission.
+    Body: { language, source_code, stdin, problem_id (optional) }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from tracker.services.judge_service import run_code_for_user
+        language = request.data.get('language', '').strip().lower()
+        source_code = request.data.get('source_code', '')
+        stdin = request.data.get('stdin', '')
+        problem_id = request.data.get('problem_id', '')
+
+        if not language:
+            return Response({'error': 'language is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not source_code.strip():
+            return Response({'error': 'source_code is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = run_code_for_user(request.user, problem_id, language, source_code, stdin)
+        return Response(result)
+
+
+class SubmitCodeView(APIView):
+    """
+    POST /api/submit/
+    Submit code for judging against all test cases (visible + hidden).
+    Body: { language, source_code, problem_id }
+    Returns: verdict, tests_passed, tests_total — NEVER hidden test I/O.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from tracker.services.judge_service import submit_code
+        language = request.data.get('language', '').strip().lower()
+        source_code = request.data.get('source_code', '')
+        problem_id = request.data.get('problem_id', '')
+
+        if not language:
+            return Response({'error': 'language is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not source_code.strip():
+            return Response({'error': 'source_code is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not problem_id:
+            return Response({'error': 'problem_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = submit_code(request.user, problem_id, language, source_code)
+        return Response(result)
+
+
+class ProblemSubmissionsView(APIView):
+    """GET /api/problems/<uuid>/submissions/ — user's own submissions for a problem."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from tracker.services.judge_service import get_submission_history
+        history = get_submission_history(request.user, str(pk))
+        return Response({'submissions': history})
+
+
+class SubmissionDetailView(APIView):
+    """GET /api/submissions/<uuid>/ — full detail for a single submission (own only)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from tracker.services.judge_service import get_submission_detail
+        detail = get_submission_detail(request.user, str(pk))
+        if detail is None:
+            return Response({'error': 'Submission not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(detail)
+
+
+class LanguagesView(APIView):
+    """GET /api/languages/ — list supported languages and default starter code."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from tracker.services.judge_service import get_supported_languages
+        return Response({'languages': get_supported_languages()})
+
+
+class LanguageTemplateView(APIView):
+    """GET /api/problems/<uuid>/language-template/?language=python — starter code."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        from tracker.services.judge_service import get_language_template
+        from tracker.services.problem_hydration_service import hydrate_problem_contract
+        try:
+            problem = Problem.objects.get(pk=pk)
+            if not problem.is_judge_ready and problem.leetcode_id:
+                hydrate_problem_contract(problem)
+        except Exception:
+            pass
+        language = request.query_params.get('language', 'python').strip().lower()
+        starter = get_language_template(str(pk), language)
+        return Response({'language': language, 'starter_code': starter})
+
+
+class ProblemTestCasesView(APIView):
+    """GET /api/problems/<uuid>/test-cases/ — VISIBLE test cases only (never hidden)."""
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        from tracker.services.problem_hydration_service import hydrate_problem_contract
+        try:
+            problem = Problem.objects.get(pk=pk)
+            if not problem.is_judge_ready and problem.leetcode_id:
+                hydrate_problem_contract(problem)
+        except Exception:
+            pass
+        test_cases = TestCase.objects.filter(problem_id=pk, is_hidden=False).order_by('order')
+        serializer = TestCaseSerializer(test_cases, many=True)
+        return Response({'test_cases': serializer.data})
+
+
+# ============================================================================
+# V2 VIEWS — Challenges
+# ============================================================================
+
+class ChallengeListView(APIView):
+    """
+    GET  /api/challenges/ — list active challenges + history
+    POST /api/challenges/ — create a new challenge
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from tracker.services.challenge_service import get_active_challenges, get_challenge_history
+        active = get_active_challenges(request.user)
+        history = get_challenge_history(request.user)
+        return Response({'active': active, 'history': history})
+
+    def post(self, request):
+        from tracker.services.challenge_service import create_challenge
+        try:
+            if not request.data.get('title'):
+                return Response({'error': 'title is required'}, status=status.HTTP_400_BAD_REQUEST)
+            challenge = create_challenge(request.user, request.data)
+            serializer = ChallengeSerializer(challenge)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChallengeDetailView(APIView):
+    """GET/DELETE /api/challenges/<uuid>/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from tracker.services.challenge_service import check_challenge_progress
+        try:
+            challenge = Challenge.objects.get(id=pk, user=request.user)
+        except Challenge.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        progress = check_challenge_progress(request.user, str(pk))
+        serializer = ChallengeSerializer(challenge)
+        return Response({**serializer.data, **progress})
+
+    def delete(self, request, pk):
+        try:
+            challenge = Challenge.objects.get(id=pk, user=request.user, status='ACTIVE')
+            challenge.status = 'CANCELLED'
+            challenge.save()
+            return Response({'status': 'cancelled'})
+        except Challenge.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class ChallengeCompleteView(APIView):
+    """POST /api/challenges/<uuid>/complete/ — manually finalize a challenge."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from tracker.services.challenge_service import finalize_challenge
+        try:
+            challenge = Challenge.objects.get(id=pk, user=request.user, status='ACTIVE')
+        except Challenge.DoesNotExist:
+            return Response({'error': 'Active challenge not found.'}, status=status.HTTP_404_NOT_FOUND)
+        result = finalize_challenge(challenge, request.user)
+        return Response(result)
+
+
+# ============================================================================
+# V2 VIEWS — Points & Achievements
+# ============================================================================
+
+class UserPointsView(APIView):
+    """GET /api/points/ — current point totals (read-only)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from tracker.services.points_service import get_user_points
+        return Response(get_user_points(request.user))
+
+
+class AchievementListView(APIView):
+    """GET /api/achievements/ — all achievements with unlock status."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from tracker.services.achievement_service import get_user_achievements, seed_achievements
+        seed_achievements()  # idempotent — ensure definitions exist
+        achievements = get_user_achievements(request.user)
+        return Response({'achievements': achievements})
+
+
+# ============================================================================
+# V2 VIEWS — Notifications
+# ============================================================================
+
+class NotificationListView(APIView):
+    """GET /api/notifications/ — recent notifications for current user."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from tracker.services.notification_service import get_notifications, get_unread_count
+        unread_only = request.query_params.get('unread') == 'true'
+        notifications = get_notifications(request.user, unread_only=unread_only)
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response({
+            'notifications': serializer.data,
+            'unread_count': get_unread_count(request.user),
+        })
+
+
+class NotificationReadView(APIView):
+    """POST /api/notifications/<uuid>/read/ — mark a notification as read."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from tracker.services.notification_service import mark_read
+        updated = mark_read(request.user, pk)
+        if not updated:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'status': 'read'})
+
+
+class NotificationReadAllView(APIView):
+    """POST /api/notifications/read-all/ — mark all notifications as read."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from tracker.services.notification_service import mark_all_read
+        count = mark_all_read(request.user)
+        return Response({'marked_read': count})
+
+
+# ============================================================================
+# V2 VIEWS — Interview Simulation
+# ============================================================================
+
+class InterviewSessionListView(APIView):
+    """
+    GET  /api/interview-sessions/ — list past sessions
+    POST /api/interview-sessions/ — start a new session
+    Body: { duration_minutes, num_problems, difficulty, company_id (optional) }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sessions = InterviewSession.objects.filter(user=request.user)[:20]
+        serializer = InterviewSessionSerializer(sessions, many=True)
+        return Response({'sessions': serializer.data})
+
+    def post(self, request):
+        duration = int(request.data.get('duration_minutes', 45))
+        num_problems = int(request.data.get('num_problems', 2))
+        difficulty = request.data.get('difficulty', 'Medium')
+        company_id = request.data.get('company_id')
+
+        # Select random problems based on difficulty
+        problems_qs = Problem.objects.all()
+        if difficulty != 'Mixed':
+            problems_qs = problems_qs.filter(difficulty=difficulty)
+        if company_id:
+            try:
+                company = Company.objects.get(id=company_id)
+                problems_qs = problems_qs.filter(companies=company)
+            except Company.DoesNotExist:
+                company = None
+        else:
+            company = None
+
+        # Avoid already-solved problems first, then fall back
+        user_solved_ids = UserProblemProgress.objects.filter(
+            user=request.user, status='SOLVED'
+        ).values_list('problem_id', flat=True)
+        unsolved = problems_qs.exclude(id__in=user_solved_ids).order_by('?')[:num_problems]
+        selected = list(unsolved)
+        if len(selected) < num_problems:
+            remaining = num_problems - len(selected)
+            fallback = problems_qs.exclude(
+                id__in=[p.id for p in selected]
+            ).order_by('?')[:remaining]
+            selected.extend(fallback)
+
+        if not selected:
+            return Response(
+                {'error': 'No problems available for these criteria.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        session = InterviewSession.objects.create(
+            user=request.user,
+            duration_minutes=duration,
+            num_problems=num_problems,
+            difficulty=difficulty,
+            company=company,
+            status='ACTIVE',
+        )
+        for prob in selected:
+            InterviewProblem.objects.create(session=session, problem=prob)
+
+        serializer = InterviewSessionSerializer(session)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class InterviewSessionDetailView(APIView):
+    """GET /api/interview-sessions/<uuid>/"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            session = InterviewSession.objects.get(id=pk, user=request.user)
+        except InterviewSession.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = InterviewSessionSerializer(session)
+        return Response(serializer.data)
+
+
+class InterviewSessionEndView(APIView):
+    """POST /api/interview-sessions/<uuid>/end/ — end a session and compute score."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from tracker.services.points_service import award_points
+        from tracker.services.achievement_service import check_and_unlock_achievements
+        from tracker.models import ActivityEvent
+        from tracker.scoring import POINTS_INTERVIEW_PROBLEM_SOLVED, POINTS_INTERVIEW_PERFECT
+
+        try:
+            session = InterviewSession.objects.get(id=pk, user=request.user, status='ACTIVE')
+        except InterviewSession.DoesNotExist:
+            return Response({'error': 'Active session not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        now = timezone.now()
+        session.ended_at = now
+        session.status = 'COMPLETED'
+
+        # Tally solved problems
+        solved = InterviewProblem.objects.filter(session=session, solved=True).count()
+        session.problems_solved = solved
+
+        # Score: points per solved problem
+        score = solved * POINTS_INTERVIEW_PROBLEM_SOLVED
+        if solved == session.num_problems:
+            score += POINTS_INTERVIEW_PERFECT
+        session.score = score
+        session.save()
+
+        if score > 0:
+            award_points(
+                request.user,
+                reason='interview_simulation',
+                amount=score,
+                metadata={'session_id': str(session.id), 'solved': solved},
+            )
+
+        # Check achievements
+        check_and_unlock_achievements(request.user)
+
+        ActivityEvent.objects.create(
+            user=request.user,
+            event_type='INTERVIEW_COMPLETED',
+            metadata={
+                'session_id': str(session.id),
+                'score': score,
+                'solved': solved,
+                'total': session.num_problems,
+            },
+        )
+
+        serializer = InterviewSessionSerializer(session)
+        return Response({
+            **serializer.data,
+            'score': score,
+            'follow_up_actions': _get_interview_follow_up(request.user, session),
+        })
+
+
+def _get_interview_follow_up(user, session) -> list[str]:
+    """Deterministic rule-based follow-up recommendations after interview simulation."""
+    actions = []
+    from tracker.services.leitner import get_leitner_box_stats
+    stats = get_leitner_box_stats(user)
+
+    if stats['due_today_count'] > 0:
+        actions.append(f'Complete {stats["due_today_count"]} due Leitner review(s)')
+
+    unsolved = InterviewProblem.objects.filter(session=session, solved=False).select_related('problem')
+    for ip in unsolved:
+        actions.append(f'Review failed problem: {ip.problem.title} ({ip.problem.difficulty})')
+
+    if not actions:
+        actions.append('Practice 2 more Medium problems')
+
+    return actions[:5]
+
+
+class InterviewProblemSolveView(APIView):
+    """
+    POST /api/interview-sessions/<session_uuid>/problems/<problem_uuid>/solve/
+    Mark a problem as solved within a session (called after Accepted submission).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, session_pk, problem_pk):
+        try:
+            session = InterviewSession.objects.get(id=session_pk, user=request.user, status='ACTIVE')
+            ip = InterviewProblem.objects.get(session=session, problem_id=problem_pk)
+        except (InterviewSession.DoesNotExist, InterviewProblem.DoesNotExist):
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        ip.solved = True
+        ip.attempts += 1
+        ip.save()
+        return Response({'solved': True})
+
+
+# ============================================================================
+# V2 VIEWS — DSA Patterns & Enhanced Analytics
+# ============================================================================
+
+class PatternListView(APIView):
+    """GET /api/patterns/ — all DSA patterns."""
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        patterns = DSAPattern.objects.all()
+        serializer = DSAPatternSerializer(patterns, many=True)
+        return Response({'patterns': serializer.data})
+
+
+class TopicMasteryView(APIView):
+    """GET /api/analytics/mastery/ — topic mastery with 5-level labels."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        mastery = get_topic_mastery_levels(request.user)
+        return Response(mastery)
+
+
+class RevisionQueueView(APIView):
+    """GET /api/analytics/revision-queue/ — deterministic revision queue."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queue = get_revision_queue(request.user)
+        return Response({'revision_queue': queue, 'count': len(queue)})
+
+
+class CompanyTrackView(APIView):
+    """GET /api/analytics/company-track/<company_slug>/ — company preparation track."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, company_slug):
+        track = get_company_track(request.user, company_slug)
+        if not track:
+            return Response({'error': 'Company not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(track)

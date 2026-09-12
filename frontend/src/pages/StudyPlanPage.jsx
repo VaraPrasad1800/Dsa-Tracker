@@ -9,7 +9,7 @@ import PlanTimelineCalendar from '../components/study_plan/PlanTimelineCalendar'
 import ProblemDetailModal from '../components/problems/ProblemDetailModal';
 import { toast } from '../components/common/Toast';
 
-export default function StudyPlanPage() {
+export default function StudyPlanPage({ onSolve }) {
   const queryClient = useQueryClient();
   const [showGenerator, setShowGenerator] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState(null);
@@ -135,6 +135,7 @@ export default function StudyPlanPage() {
           problem={selectedProblem}
           onClose={() => setSelectedProblem(null)}
           onSaveProgress={(data) => updateProgressMutation.mutate(data)}
+          onSolve={onSolve}
         />
       )}
     </div>

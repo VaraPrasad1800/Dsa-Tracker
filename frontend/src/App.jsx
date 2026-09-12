@@ -19,6 +19,10 @@ import TodaysReviewPage from './pages/TodaysReviewPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import StudyPlanPage from './pages/StudyPlanPage';
 import SolutionPage from './pages/SolutionPage';
+import JudgePage from './pages/JudgePage';
+import ChallengesPage from './pages/ChallengesPage';
+import InterviewModePage from './pages/InterviewModePage';
+import AchievementsPage from './pages/AchievementsPage';
 import KeyboardShortcutsModal from './components/problems/KeyboardShortcutsModal';
 
 // Auth pages
@@ -84,6 +88,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('problems');
   const [activeTopicFilter, setActiveTopicFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState(null);
+  const [activeJudgeProblemId, setActiveJudgeProblemId] = useState(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
 
@@ -124,12 +129,18 @@ function AppContent() {
     if (tab !== 'companies') setSelectedCompany(null);
   };
 
+  const handleSolveProblem = (prob) => {
+    const pId = typeof prob === 'object' ? prob.id : prob;
+    setActiveJudgeProblemId(pId);
+    setActiveTab('judge');
+  };
+
   return (
     <div
       className="min-h-screen flex"
       style={{ background: 'var(--bg-primary)' }}
     >
-      {/* Sidebar */}
+      {/* Sidebar Navigation */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={handleTabChange}
@@ -153,7 +164,34 @@ function AppContent() {
                 <ProblemsPage
                   activeTopicFilter={activeTopicFilter}
                   onSelectTopicFilter={setActiveTopicFilter}
+                  onSolve={handleSolveProblem}
                 />
+              </PageWrapper>
+            )}
+
+            {activeTab === 'judge' && (
+              <PageWrapper key={activeJudgeProblemId ? `judge-${activeJudgeProblemId}` : 'judge'}>
+                <JudgePage initialProblemId={activeJudgeProblemId} />
+              </PageWrapper>
+            )}
+
+            {activeTab === 'challenges' && (
+              <PageWrapper key="challenges">
+                <ChallengesPage onSolve={handleSolveProblem} />
+              </PageWrapper>
+            )}
+
+            {activeTab === 'interview' && (
+              <PageWrapper key="interview">
+                <InterviewModePage
+                  onNavigateToProblem={handleSolveProblem}
+                />
+              </PageWrapper>
+            )}
+
+            {activeTab === 'achievements' && (
+              <PageWrapper key="achievements">
+                <AchievementsPage />
               </PageWrapper>
             )}
 
@@ -169,13 +207,17 @@ function AppContent() {
                   company={selectedCompany}
                   onBack={() => setSelectedCompany(null)}
                   onNavigateToProblems={() => handleTabChange('problems')}
+                  onSolve={handleSolveProblem}
                 />
               </PageWrapper>
             )}
 
             {activeTab === 'review' && (
               <PageWrapper key="review">
-                <TodaysReviewPage onNavigateToProblems={() => handleTabChange('problems')} />
+                <TodaysReviewPage
+                  onNavigateToProblems={() => handleTabChange('problems')}
+                  onSolve={handleSolveProblem}
+                />
               </PageWrapper>
             )}
 
@@ -187,7 +229,7 @@ function AppContent() {
 
             {activeTab === 'study-plan' && (
               <PageWrapper key="study-plan">
-                <StudyPlanPage />
+                <StudyPlanPage onSolve={handleSolveProblem} />
               </PageWrapper>
             )}
           </AnimatePresence>

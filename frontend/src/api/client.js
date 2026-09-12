@@ -160,4 +160,50 @@ export const exportApi = {
   }),
 };
 
+export const judgeApi = {
+  runCode: (data) => api.post('/run-code/', data),
+  submitCode: (data) => api.post('/submit/', data),
+  getLanguages: () => api.get('/languages/'),
+  getTemplate: (problemId, language) => api.get(`/problems/${problemId}/language-template/`, { params: { language } }),
+  getTestCases: (problemId) => api.get(`/problems/${problemId}/test-cases/`),
+  getSubmissions: (problemId) => api.get(`/problems/${problemId}/submissions/`),
+  getSubmissionDetail: (id) => api.get(`/submissions/${id}/`),
+};
+
+export const challengesApi = {
+  getChallenges: () => api.get('/challenges/'),
+  createChallenge: (data) => api.post('/challenges/', data),
+  getChallenge: (id) => api.get(`/challenges/${id}/`),
+  cancelChallenge: (id) => api.delete(`/challenges/${id}/`),
+  completeChallenge: (id) => api.post(`/challenges/${id}/complete/`),
+};
+
+export const pointsApi = {
+  getPoints: () => api.get('/points/'),
+};
+
+export const achievementsApi = {
+  getAchievements: () => api.get('/achievements/'),
+};
+
+export const notificationsApi = {
+  getNotifications: (params) => api.get('/notifications/', { params }),
+  markRead: (id) => api.post(`/notifications/${id}/read/`),
+  markAllRead: () => api.post('/notifications/read-all/'),
+};
+
+export const interviewApi = {
+  getSessions: () => api.get('/interview-sessions/'),
+  startSession: (data) => api.post('/interview-sessions/', data),
+  getSession: (id) => api.get(`/interview-sessions/${id}/`),
+  endSession: (id) => api.post(`/interview-sessions/${id}/end/`),
+  solveProblem: (sessionId, problemId) => api.post(`/interview-sessions/${sessionId}/problems/${problemId}/solve/`),
+};
+
+export const extendedAnalyticsApi = {
+  getMastery: () => api.get('/analytics/mastery/'),
+  getRevisionQueue: () => api.get('/analytics/revision-queue/'),
+  getCompanyTrack: (slug) => api.get(`/analytics/company-track/${slug}/`),
+};
+
 export default api;

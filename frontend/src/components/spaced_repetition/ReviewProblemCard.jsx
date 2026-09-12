@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { 
   CheckCircle2, 
   RotateCcw, 
@@ -15,6 +15,7 @@ import {
 export default function ReviewProblemCard({
   item,
   onAction,
+  onSolve,
   loading = false,
 }) {
   const [showNotes, setShowNotes] = useState(false);
@@ -51,7 +52,12 @@ export default function ReviewProblemCard({
       {/* Title & External Link */}
       <div className="mb-6">
         <h2 className="text-2xl font-black text-white flex items-center gap-3">
-          {problem.title}
+          {problem.question_number && (
+            <span className="text-indigo-400 font-mono text-xl">
+              #{problem.question_number}
+            </span>
+          )}
+          <span>{problem.title}</span>
           {problem.source_url && (
             <a
               href={problem.source_url}
@@ -128,6 +134,18 @@ export default function ReviewProblemCard({
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
+          {/* Solve in Online Judge */}
+          {onSolve && (
+            <button
+              onClick={() => onSolve(item.problem.id)}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+              title="Open and solve in Online Judge"
+            >
+              <Code className="h-4 w-4" />
+              <span>Solve in Judge</span>
+            </button>
+          )}
+
           {/* Solved */}
           <button
             onClick={() => onAction(item.problem.id, 'SOLVED')}

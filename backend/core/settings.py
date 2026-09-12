@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -173,10 +173,26 @@ CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_ALWAYS_EAGER', 'False') == 'Tr
 CELERY_BEAT_SCHEDULE = {
     'daily-review-digest': {
         'task': 'tracker.tasks.send_daily_review_digest',
-        'schedule': 86400,
+        'schedule': 86400,  # daily
     },
     'refresh-analytics': {
         'task': 'tracker.tasks.refresh_user_analytics',
-        'schedule': 86400,
+        'schedule': 86400,  # daily
+    },
+    'check-challenge-deadlines': {
+        'task': 'tracker.tasks.check_challenge_deadlines',
+        'schedule': 300,  # every 5 minutes
+    },
+    'send-challenge-expiry-reminders': {
+        'task': 'tracker.tasks.send_challenge_expiry_reminders',
+        'schedule': 300,  # every 5 minutes
+    },
+    'reset-weekly-points': {
+        'task': 'tracker.tasks.reset_weekly_points',
+        'schedule': 604800,  # every 7 days (Monday UTC via crontab ideally)
+    },
+    'seed-achievements': {
+        'task': 'tracker.tasks.seed_achievements',
+        'schedule': 86400,  # daily — idempotent, ensures new achievements are always present
     },
 }

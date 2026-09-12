@@ -28,6 +28,7 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
+from tracker.utils.problem_formatter import parse_structured_statement
 
 logger = logging.getLogger(__name__)
 
@@ -46,13 +47,25 @@ def _clean_text(element) -> str:
 def _collect_siblings_until_heading(start_element, stop_tags=('h1', 'h2', 'h3')):
     """
     Walk next siblings from *start_element* collecting text until we hit a
-    heading tag listed in *stop_tags*.  Returns collected plain text.
+    heading tag listed in *stop_tags* or a section barrier (like solutions/algorithm/code).
+    Returns collected plain text.
     """
     parts = []
     curr = start_element.find_next_sibling() if start_element else None
     while curr:
+        txt_lower = curr.get_text().strip().lower()
         if curr.name in stop_tags:
-            break
+            # If curr is an h3/h4 with 'Example' or 'Constraint', it belongs to the statement
+            if curr.name in ('h3', 'h4') and any(w in txt_lower for w in ('example', 'constraint', 'note', 'follow')):
+                pass
+            else:
+                break
+
+        # Stop if encountering major post-statement section headings
+        if curr.name in ('h1', 'h2', 'h3'):
+            if any(w in txt_lower for w in ('solution', 'algorithm', 'code', 'all problem', 'complexity')):
+                break
+
         # Skip UIkit tab/switcher elements (they belong to code, not text)
         classes = curr.get('class') or []
         if 'uk-tab' in classes or 'uk-switcher' in classes:
@@ -218,25 +231,40 @@ class LeetCodeCaScraper:
             'space_complexity': '',
         }
 
-        # ---- Description (Question section) ----
-        question_h1 = soup.find('h1', id='question') or soup.find(
-            'h1', string=re.compile(r'question', re.I)
+        # ---- Description (Question / Description section) ----
+        question_elem = (
+            soup.find(['h1', 'h2', 'h3'], id=lambda x: x and any(w in x.lower() for w in ('question', 'description')))
+            or soup.find(['h1', 'h2', 'h3'], string=lambda s: s and any(w in s.strip().lower() for w in ('question', 'description')))
         )
-        if question_h1:
-            result['description'] = _collect_siblings_until_heading(question_h1)
+        if question_elem:
+            result['description'] = _collect_siblings_until_heading(question_elem, stop_tags=('h1', 'h2'))
 
         # ---- Explanation (Algorithm section) ----
         algo_h1 = (
-            soup.find('h1', id='algorithm')
-            or soup.find('h1', id='algorithms')
-            or soup.find('h1', string=re.compile(r'^algorithm', re.I))
+            soup.find(['h1', 'h2', 'h3'], id=lambda x: x and 'algorithm' in x.lower())
+            or soup.find(['h1', 'h2', 'h3'], string=re.compile(r'^algorithm', re.I))
         )
         if algo_h1:
-            result['explanation'] = _collect_siblings_until_heading(algo_h1)
+            result['explanation'] = _collect_siblings_until_heading(algo_h1, stop_tags=('h1', 'h2'))
 
         # ---- Code (UIKit tab/switcher) ----
         code_dict = self._extract_code_tabs(soup)
+        code_by_language = {}
         if code_dict:
+            for key, val in code_dict.items():
+                k = key.lower()
+                c_text = (val.get('code') or '').strip()
+                if not c_text:
+                    continue
+                if 'python' in k:
+                    code_by_language['python'] = c_text
+                elif 'c++' in k or 'cpp' in k:
+                    code_by_language['cpp'] = c_text
+                elif 'java' in k and 'javascript' not in k:
+                    code_by_language['java'] = c_text
+                elif k == 'c' or 'c ' in k:
+                    code_by_language['c'] = c_text
+
             preferred_order = ['python', 'java', 'c++', 'cpp', 'go', 'javascript']
             for pref in preferred_order:
                 for key, val in code_dict.items():
@@ -256,6 +284,8 @@ class LeetCodeCaScraper:
                 first = next(iter(code_dict.values()))
                 result['code'] = first['code']
                 result['language'] = first['language']
+
+        result['code_by_language'] = code_by_language
 
         # ---- Complexity fallback from full page text ----
         if not result['time_complexity'] or not result['space_complexity']:
@@ -495,13 +525,19 @@ class LeetCodeCaScraper:
         description = page2_data.get('description') or page1_data.get('description', '')
         title = page1_data.get('title') or f'LeetCode {leetcode_id}'
 
+        parsed = parse_structured_statement(description)
+        clean_desc = parsed.get('description') or description or 'Problem description not available.'
+
         return {
             'question_number': leetcode_id,
             'title': title,
-            'description': description or 'Problem description not available.',
+            'description': clean_desc,
+            'examples': parsed.get('examples') or [],
+            'constraints': parsed.get('constraints') or [],
             'explanation': page2_data.get('explanation') or 'Solution explanation not available.',
             'solution': page2_data.get('explanation') or '',   # alias kept for compatibility
             'code': page2_data.get('code') or '# Solution code not available for this problem.',
+            'code_by_language': page2_data.get('code_by_language') or {},
             'language': page2_data.get('language') or 'python',
             'time_complexity': page2_data.get('time_complexity') or '',
             'space_complexity': page2_data.get('space_complexity') or '',

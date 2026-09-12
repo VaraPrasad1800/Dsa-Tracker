@@ -26,6 +26,7 @@ import { toast } from '../components/common/Toast';
 const HeroOrb = lazy(() => import('../components/dashboard/HeroOrb'));
 
 const SORT_OPTIONS = [
+  { value: 'question_number', label: 'Problem # (1 → 99)' },
   { value: 'random', label: 'Surprise Me (Shuffle)' },
   { value: 'frequency', label: 'Most Asked' },
   { value: 'title', label: 'Title A → Z' },
@@ -34,10 +35,11 @@ const SORT_OPTIONS = [
   { value: 'created', label: 'Recently Added' },
 ];
 
-export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter }) {
+export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, onSolve }) {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState({
     difficulty: '',
     status: '',
@@ -45,7 +47,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
     company: '',
     bookmarked: '',
   });
-  const [sort, setSort] = useState('random');
+  const [sort, setSort] = useState('question_number');
   const [shuffleNonce, setShuffleNonce] = useState(0);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'table'
   const [page, setPage] = useState(1);
@@ -60,9 +62,22 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
     }
   }, [activeTopicFilter]);
 
-  // Problems query
+  // Debounce search by 250ms to prevent API flooding on every keystroke
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset to page 1 on debounced search change
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  // Problems query with staleTime and placeholderData
   const { data: problemsData, isLoading: loadingProblems } = useQuery({
-    queryKey: ['problems', filters, search, page, sort, shuffleNonce],
+    queryKey: ['problems', filters, debouncedSearch, page, sort, shuffleNonce],
     queryFn: async () => {
       const params = {
         page,
@@ -72,11 +87,13 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
         topic: filters.topic || undefined,
         company: filters.company || undefined,
         bookmarked: filters.bookmarked || undefined,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
       };
       const res = await problemsApi.getProblems(params);
       return res.data;
     },
+    staleTime: 1000 * 60 * 2,
+    placeholderData: (prev) => prev,
   });
 
   // Tags query
@@ -174,7 +191,15 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
     toast('🎲 Shuffled problem set!', { icon: '✨' });
   };
 
-  const problems = problemsData?.results || [];
+  const rawProblems = problemsData?.results || [];
+  const problems = React.useMemo(() => {
+    const seen = new Set();
+    return rawProblems.filter((p) => {
+      if (!p || seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [rawProblems]);
   const totalCount = problemsData?.count || 0;
   const totalPages = Math.ceil(totalCount / 20) || 1;
 
@@ -356,6 +381,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
               onPageChange={(newPage) => setPage(newPage)}
               onSelectProblem={(prob) => setSelectedProblem(prob)}
               onQuickUpdateStatus={handleQuickUpdateStatus}
+              onSolve={onSolve}
               loading={loadingProblems}
             />
           ) : loadingProblems ? (
@@ -385,6 +411,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
                     problem={prob}
                     onSelect={(p) => setSelectedProblem(p)}
                     onQuickUpdateStatus={handleQuickUpdateStatus}
+                    onSolve={onSolve}
                   />
                 ))}
               </div>
@@ -431,6 +458,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter })
           problem={selectedProblem}
           onClose={() => setSelectedProblem(null)}
           onSaveProgress={(data) => updateProgressMutation.mutate(data)}
+          onSolve={onSolve}
         />
       )}
     </div>

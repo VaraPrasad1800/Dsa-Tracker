@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Calendar, CheckCircle2, Lightbulb } from 'lucide-react';
 
 export default function PlanTimelineCalendar({ planDays = [], onSelectProblem }) {
@@ -79,6 +79,11 @@ export default function PlanTimelineCalendar({ planDays = [], onSelectProblem })
                               isSolved ? 'text-emerald-400' : 'text-slate-600'
                             }`}
                           />
+                          {prob.question_number && (
+                            <span className="font-mono text-indigo-400 font-bold text-[11px] shrink-0">
+                              #{prob.question_number}
+                            </span>
+                          )}
                           <span
                             className={`truncate ${
                               isSolved ? 'line-through text-slate-500' : 'text-slate-200 group-hover:text-indigo-300'

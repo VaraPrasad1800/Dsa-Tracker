@@ -16,18 +16,26 @@ import {
   ChevronRight,
   Download,
   Tag,
-  Zap,
+  Terminal,
+  Trophy,
+  Video,
+  Award,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import ExportProgress from './common/ExportProgress';
 import TagToggle from './common/TagToggle';
+import NotificationCenter from './common/NotificationCenter';
 
 const NAV_ITEMS = [
   { id: 'problems',    label: 'Problem Bank',   icon: Code2,         shortcut: 'P' },
+  { id: 'judge',       label: 'Online Judge',   icon: Terminal,      shortcut: 'J' },
+  { id: 'challenges',  label: 'Challenges',     icon: Trophy,        shortcut: 'H' },
+  { id: 'interview',   label: 'Interview Mode', icon: Video,         shortcut: 'I' },
   { id: 'companies',   label: 'Companies',      icon: Building2,     shortcut: 'C' },
   { id: 'review',      label: "Today's Review", icon: CalendarClock, shortcut: 'R' },
   { id: 'analytics',   label: 'Analytics',      icon: BarChart3,     shortcut: 'A' },
+  { id: 'achievements',label: 'Achievements',   icon: Award,         shortcut: 'M' },
   { id: 'study-plan',  label: 'Study Plan',     icon: CalendarCheck, shortcut: 'S' },
 ];
 
@@ -53,24 +61,27 @@ export default function Navbar({ activeTab, setActiveTab, dueCount = 0, onOpenSh
       style={{ width: sidebarWidth }}
     >
       {/* Brand */}
-      <div className="px-4 py-5 flex items-center gap-3 border-b border-white/[0.06]">
-        <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-gradient flex items-center justify-center shadow-brand-glow-sm">
-          <Code2 className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+      <div className="px-4 py-5 flex items-center justify-between border-b border-white/[0.06]">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 shrink-0 rounded-xl bg-brand-gradient flex items-center justify-center shadow-brand-glow-sm">
+            <Code2 className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
+          </div>
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="font-bold text-sm text-white leading-tight whitespace-nowrap">DSA Tracker</div>
+                <div className="text-[10px] text-slate-500 whitespace-nowrap">Leitner SRS</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="font-bold text-sm text-white leading-tight whitespace-nowrap">DSA Tracker</div>
-              <div className="text-[10px] text-slate-500 whitespace-nowrap">Leitner SRS</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {!collapsed && <NotificationCenter onNavigateTab={setActiveTab} />}
       </div>
 
       {/* Nav Items */}

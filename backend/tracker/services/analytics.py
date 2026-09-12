@@ -1,8 +1,9 @@
-﻿from datetime import timedelta
+from datetime import timedelta
 from django.utils import timezone
 from django.core.cache import cache
 from django.db.models import Count, Q, Sum
 from tracker.models import Problem, UserProblemProgress, DailyStat, UserStreak, Tag, Company
+from tracker.scoring import MASTERY_LEVELS, WEAK_TOPIC_THRESHOLD_PCT
 
 CACHE_TTL = 6 * 3600  # 6 hours TTL per specification
 
@@ -17,11 +18,13 @@ def invalidate_user_analytics_cache(user_id):
         get_cache_key('heatmap', user_id, current_year),
         get_cache_key('heatmap', user_id, current_year - 1),
         get_cache_key('topic_breakdown', user_id),
+        get_cache_key('topic_mastery', user_id),
         get_cache_key('streaks', user_id),
         get_cache_key('difficulty_breakdown', user_id),
         get_cache_key('timeline', user_id, 90),
         get_cache_key('timeline', user_id, 30),
         get_cache_key('dashboard', user_id),
+        get_cache_key('revision_queue', user_id),
         f'digest:{user_id}',
     ]
     for key in keys:
@@ -281,3 +284,253 @@ def get_user_timeline(user, days=90):
 
     cache.set(cache_key, timeline, timeout=CACHE_TTL)
     return timeline
+
+
+# ============================================================================
+# V2 ANALYTICS — Topic Mastery Levels, Revision Queue, Company Track
+# ============================================================================
+
+def _compute_mastery_level(solved_count: int, total: int, medium_hard_solved: int) -> str:
+    """
+    Deterministic mastery level based on MASTERY_LEVELS from scoring.py.
+    Levels (weakest to strongest): Beginner, Familiar, Practicing, Strong, Mastered.
+    MASTERY_LEVELS entries: (name, min_pct, min_solved, min_medium_hard)
+    """
+    pct = (solved_count / total * 100) if total > 0 else 0
+    # Iterate from strongest to weakest, return first level met
+    for name, min_pct, min_solved, min_mh in reversed(MASTERY_LEVELS):
+        if pct >= min_pct and solved_count >= min_solved and medium_hard_solved >= min_mh:
+            return name
+    return 'Beginner'
+
+
+def get_topic_mastery_levels(user) -> dict:
+    """
+    Return enhanced topic mastery with 5-level deterministic labels.
+    Beginner → Familiar → Practicing → Strong → Mastered
+    """
+    cache_key = get_cache_key('topic_mastery', user.id)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    tags = Tag.objects.annotate(
+        total_problems=Count('problems', distinct=True)
+    ).filter(total_problems__gt=0)
+
+    topics = []
+    for tag in tags:
+        progresses = UserProblemProgress.objects.filter(
+            user=user, problem__tags=tag, status='SOLVED'
+        ).select_related('problem')
+
+        solved_count = progresses.count()
+        medium_hard_solved = progresses.filter(
+            problem__difficulty__in=['Medium', 'Hard']
+        ).count()
+
+        level = _compute_mastery_level(solved_count, tag.total_problems, medium_hard_solved)
+        pct = round((solved_count / tag.total_problems) * 100, 1) if tag.total_problems > 0 else 0
+
+        topics.append({
+            'id': tag.id,
+            'name': tag.name,
+            'slug': tag.slug,
+            'solved': solved_count,
+            'total': tag.total_problems,
+            'medium_hard_solved': medium_hard_solved,
+            'percentage': pct,
+            'mastery_level': level,
+            'is_weak': pct < WEAK_TOPIC_THRESHOLD_PCT,
+        })
+
+    # Sort: weakest first (for actionable order)
+    topics.sort(key=lambda x: (x['percentage'], x['solved']))
+    result = {'topics': topics}
+    cache.set(cache_key, result, timeout=CACHE_TTL)
+    return result
+
+
+def get_revision_queue(user) -> list:
+    """
+    Build a deterministic revision queue ordered by priority:
+    1. Overdue Box 1 (most urgent)
+    2. Overdue higher-box cards
+    3. NEEDS_REVISIT problems
+    4. Problems with recent failed submissions
+    5. Recently solved problems (for reinforcement)
+
+    Returns a list of safe dicts (no hidden test data).
+    """
+    cache_key = get_cache_key('revision_queue', user.id)
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    from tracker.scoring import (
+        REVISION_ORDER_OVERDUE_BOX1, REVISION_ORDER_OVERDUE_HIGHER_BOX,
+        REVISION_ORDER_NEEDS_REVISIT, REVISION_ORDER_FAILED_SUBMISSION,
+        REVISION_ORDER_RECENTLY_SOLVED,
+    )
+    from tracker.models import Submission
+
+    now = timezone.now()
+    queue = []
+    seen_problem_ids = set()
+
+    # 1 & 2: Overdue Leitner cards
+    overdue = UserProblemProgress.objects.filter(
+        user=user, next_review_date__lte=now
+    ).select_related('problem').order_by('current_box', 'next_review_date')
+
+    for prog in overdue:
+        if prog.problem_id in seen_problem_ids:
+            continue
+        seen_problem_ids.add(prog.problem_id)
+        priority = REVISION_ORDER_OVERDUE_BOX1 if prog.current_box == 1 else REVISION_ORDER_OVERDUE_HIGHER_BOX
+        queue.append({
+            'priority': priority,
+            'problem_id': str(prog.problem_id),
+            'question_number': prog.problem.question_number,
+            'problem_title': prog.problem.title,
+            'difficulty': prog.problem.difficulty,
+            'status': prog.status,
+            'leitner_box': prog.current_box,
+            'next_review_date': prog.next_review_date.isoformat() if prog.next_review_date else None,
+            'reason': 'overdue_review',
+        })
+
+    # 3: NEEDS_REVISIT (not already in queue)
+    revisit = UserProblemProgress.objects.filter(
+        user=user, status='NEEDS_REVISIT'
+    ).select_related('problem').exclude(problem_id__in=seen_problem_ids)
+
+    for prog in revisit:
+        seen_problem_ids.add(prog.problem_id)
+        queue.append({
+            'priority': REVISION_ORDER_NEEDS_REVISIT,
+            'problem_id': str(prog.problem_id),
+            'question_number': prog.problem.question_number,
+            'problem_title': prog.problem.title,
+            'difficulty': prog.problem.difficulty,
+            'status': prog.status,
+            'leitner_box': prog.current_box,
+            'next_review_date': None,
+            'reason': 'needs_revisit',
+        })
+
+    # 4: Recent failed submissions (in last 7 days, not already in queue)
+    week_ago = now - timedelta(days=7)
+    failed_subs = Submission.objects.filter(
+        user=user,
+        verdict__in=['WRONG_ANSWER', 'RUNTIME_ERROR', 'TLE'],
+        created_at__gte=week_ago,
+    ).select_related('problem').exclude(problem_id__in=seen_problem_ids).order_by('-created_at')
+
+    for sub in failed_subs[:10]:
+        if sub.problem_id in seen_problem_ids:
+            continue
+        seen_problem_ids.add(sub.problem_id)
+        queue.append({
+            'priority': REVISION_ORDER_FAILED_SUBMISSION,
+            'problem_id': str(sub.problem_id),
+            'question_number': sub.problem.question_number,
+            'problem_title': sub.problem.title,
+            'difficulty': sub.problem.difficulty,
+            'status': 'ATTEMPTED',
+            'leitner_box': None,
+            'next_review_date': None,
+            'reason': f'failed_{sub.verdict.lower()}',
+        })
+
+    # 5: Recently solved (last 3 days, for reinforcement)
+    three_days_ago = now - timedelta(days=3)
+    recent_solved = UserProblemProgress.objects.filter(
+        user=user, status='SOLVED', last_solved__gte=three_days_ago
+    ).select_related('problem').exclude(problem_id__in=seen_problem_ids).order_by('-last_solved')
+
+    for prog in recent_solved[:5]:
+        seen_problem_ids.add(prog.problem_id)
+        queue.append({
+            'priority': REVISION_ORDER_RECENTLY_SOLVED,
+            'problem_id': str(prog.problem_id),
+            'question_number': prog.problem.question_number,
+            'problem_title': prog.problem.title,
+            'difficulty': prog.problem.difficulty,
+            'status': prog.status,
+            'leitner_box': prog.current_box,
+            'next_review_date': None,
+            'reason': 'recently_solved',
+        })
+
+    # Sort by priority (ascending = most urgent first)
+    queue.sort(key=lambda x: (x['priority'], x.get('leitner_box') or 99))
+    cache.set(cache_key, queue, timeout=300)  # short TTL — revision queue changes often
+    return queue
+
+
+def get_company_track(user, company_slug: str) -> dict:
+    """
+    Return company preparation track data for a specific company.
+    Shows solved/total, difficulty breakdown, weak topics, mastery.
+    """
+    try:
+        company = Company.objects.get(slug=company_slug)
+    except Company.DoesNotExist:
+        return {}
+
+    problems = Problem.objects.filter(companies=company).prefetch_related('tags')
+    total = problems.count()
+    if total == 0:
+        return {'company': company.name, 'slug': company.slug, 'total': 0}
+
+    solved_progress = UserProblemProgress.objects.filter(
+        user=user, status='SOLVED', problem__companies=company
+    )
+    solved = solved_progress.count()
+
+    # Difficulty breakdown
+    difficulty_data = {}
+    for diff in ['Easy', 'Medium', 'Hard']:
+        diff_total = problems.filter(difficulty=diff).count()
+        diff_solved = solved_progress.filter(problem__difficulty=diff).count()
+        difficulty_data[diff] = {
+            'total': diff_total,
+            'solved': diff_solved,
+            'percentage': round((diff_solved / diff_total * 100), 1) if diff_total > 0 else 0,
+        }
+
+    # Tag breakdown for this company
+    from django.db.models import Count
+    tag_counts = Tag.objects.filter(
+        problems__companies=company
+    ).annotate(
+        total_in_company=Count('problems', filter=Q(problems__companies=company), distinct=True)
+    ).filter(total_in_company__gt=0)
+
+    weak_topics = []
+    for tag in tag_counts:
+        tag_solved = solved_progress.filter(problem__tags=tag).count()
+        tag_pct = (tag_solved / tag.total_in_company * 100) if tag.total_in_company > 0 else 0
+        if tag_pct < WEAK_TOPIC_THRESHOLD_PCT:
+            weak_topics.append({
+                'name': tag.name,
+                'slug': tag.slug,
+                'solved': tag_solved,
+                'total': tag.total_in_company,
+                'percentage': round(tag_pct, 1),
+            })
+
+    weak_topics.sort(key=lambda x: x['percentage'])
+    overall_pct = round((solved / total * 100), 1) if total > 0 else 0
+
+    return {
+        'company': company.name,
+        'slug': company.slug,
+        'total': total,
+        'solved': solved,
+        'percentage': overall_pct,
+        'difficulty_breakdown': difficulty_data,
+        'weak_topics': weak_topics[:8],
+        'readiness': 'Strong' if overall_pct >= 70 else ('Progressing' if overall_pct >= 40 else 'Needs Work'),
+    }

@@ -9,6 +9,7 @@ import {
   FileText,
   Clock,
   Sparkles,
+  Code2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TagBadge from '../common/TagBadge';
@@ -26,6 +27,7 @@ export default function ProblemsTable({
   onPageChange,
   onSelectProblem,
   onQuickUpdateStatus,
+  onSolve,
   loading = false,
 }) {
   const { showTags } = useTags();
@@ -183,8 +185,11 @@ export default function ProblemsTable({
                     {/* Title */}
                     <td className="font-medium text-slate-100 py-3.5 px-4">
                       <div className="flex items-center gap-2">
+                        <span className="font-mono text-indigo-400 font-bold text-xs shrink-0">
+                          #{prob.question_number || prob.leetcode_id}
+                        </span>
                         <span className="group-hover:text-indigo-300 transition-colors font-semibold">
-                          {prob.leetcode_id ? `${prob.leetcode_id}. ` : ''}{prob.title}
+                          {prob.title}
                         </span>
 
                         {(prob.leetcode_url || prob.source_url) && (
@@ -295,6 +300,17 @@ export default function ProblemsTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1.5">
+                        {onSolve && (
+                          <motion.button
+                            whileTap={{ scale: 0.88 }}
+                            onClick={() => onSolve(prob.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all"
+                            title="Solve in Online Judge"
+                          >
+                            <Code2 className="h-3.5 w-3.5" />
+                            <span>Solve</span>
+                          </motion.button>
+                        )}
                         <motion.button
                           whileTap={{ scale: 0.88 }}
                           onClick={() => onQuickUpdateStatus(prob.id, 'SOLVED', status)}

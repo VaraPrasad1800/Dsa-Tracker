@@ -9,6 +9,7 @@ import {
   FileText,
   Bookmark,
   BookmarkCheck,
+  Code2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TagBadge from '../common/TagBadge';
@@ -57,7 +58,7 @@ function StatusDot({ status }) {
   );
 }
 
-export default function ProblemCard({ problem, onSelect, onQuickUpdateStatus }) {
+function ProblemCardInner({ problem, onSelect, onQuickUpdateStatus, onSolve }) {
   const { showTags } = useTags();
   const [justSolved, setJustSolved] = useState(false);
   const status = problem.user_progress?.status || 'UNSOLVED';
@@ -75,7 +76,6 @@ export default function ProblemCard({ problem, onSelect, onQuickUpdateStatus }) 
 
   return (
     <motion.div
-      layout
       onClick={() => onSelect?.(problem)}
       whileHover={{ y: -3 }}
       transition={{ type: 'spring', stiffness: 400, damping: 28 }}
@@ -156,12 +156,15 @@ export default function ProblemCard({ problem, onSelect, onQuickUpdateStatus }) 
 
       {/* Title */}
       <h3
-        className="font-semibold text-sm leading-snug transition-colors duration-150"
+        className="font-semibold text-sm leading-snug transition-colors duration-150 flex items-baseline gap-1.5"
         style={{ color: '#e2e8f0' }}
         onMouseEnter={e => e.currentTarget.style.color = '#a5b4fc'}
         onMouseLeave={e => e.currentTarget.style.color = '#e2e8f0'}
       >
-        {problem.leetcode_id ? `${problem.leetcode_id}. ` : ''}{problem.title}
+        <span className="font-mono text-indigo-400 font-bold text-xs shrink-0">
+          #{problem.question_number || problem.leetcode_id}
+        </span>
+        <span className="truncate">{problem.title}</span>
       </h3>
 
       {/* Tags */}
@@ -226,7 +229,27 @@ export default function ProblemCard({ problem, onSelect, onQuickUpdateStatus }) 
           )}
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {onSolve && (
+            <motion.button
+              onClick={(e) => {
+                e.stopPropagation();
+                onSolve(problem.id);
+              }}
+              whileTap={{ scale: 0.9 }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-150"
+              style={{
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(168,85,247,0.25) 100%)',
+                color: '#c084fc',
+                border: '1px solid rgba(168,85,247,0.35)',
+              }}
+              title="Solve in Online Judge"
+            >
+              <Code2 style={{ width: 13, height: 13 }} />
+              <span>Solve</span>
+            </motion.button>
+          )}
+
           {/* Solve button with pop animation */}
           <motion.button
             onClick={e => handleAction(e, 'SOLVED', status)}
@@ -263,3 +286,6 @@ export default function ProblemCard({ problem, onSelect, onQuickUpdateStatus }) 
     </motion.div>
   );
 }
+
+const ProblemCard = React.memo(ProblemCardInner);
+export default ProblemCard;

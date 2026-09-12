@@ -11,13 +11,14 @@ import { toast } from '../components/common/Toast';
 
 const SORT_OPTIONS = [
   { value: 'frequency', label: 'Most Asked' },
+  { value: 'question_number', label: 'Problem # (1 → 99)' },
   { value: 'title', label: 'Title A → Z' },
   { value: 'difficulty_asc', label: 'Difficulty (Easy first)' },
   { value: 'difficulty_desc', label: 'Difficulty (Hard first)' },
   { value: 'created', label: 'Recently Added' },
 ];
 
-export default function CompanyProblemsPage({ company, onBack, onNavigateToProblems }) {
+export default function CompanyProblemsPage({ company, onBack, onNavigateToProblems, onSolve }) {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -205,6 +206,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
             onPageChange={(newPage) => setPage(newPage)}
             onSelectProblem={(prob) => setSelectedProblem(prob)}
             onQuickUpdateStatus={handleQuickUpdateStatus}
+            onSolve={onSolve}
             loading={loadingProblems}
           />
         </div>
@@ -216,6 +218,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
           problem={selectedProblem}
           onClose={() => setSelectedProblem(null)}
           onSaveProgress={(data) => updateProgressMutation.mutate(data)}
+          onSolve={onSolve}
         />
       )}
     </div>

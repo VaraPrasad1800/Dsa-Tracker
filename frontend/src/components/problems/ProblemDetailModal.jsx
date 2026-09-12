@@ -26,7 +26,7 @@ import TagBadge from '../common/TagBadge';
 import BookmarkButton from '../common/BookmarkButton';
 import { useTags } from '../../context/TagContext';
 
-export default function ProblemDetailModal({ problem, onClose, onSaveProgress }) {
+export default function ProblemDetailModal({ problem, onClose, onSaveProgress, onSolve }) {
   const [status, setStatus] = useState('UNSOLVED');
   const [notes, setNotes] = useState('');
   const [codeSolution, setCodeSolution] = useState('');
@@ -147,8 +147,11 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress })
       >
         {/* Modal Header */}
         <div className="p-5 sm:p-6 border-b border-white/[0.07] flex items-start justify-between gap-4 bg-black/30 sticky top-0 z-10">
-          <div className="space-y-1.5 min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="space-y-2 min-w-0">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl sm:text-3xl font-black text-indigo-400 font-mono tracking-tight">
+                #{problem.question_number || problem.leetcode_id}
+              </span>
               <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${getDiffBadgeClass(problem.difficulty)}`}>
                 {problem.difficulty}
               </span>
@@ -160,8 +163,8 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress })
               )}
             </div>
 
-            <h2 className="text-lg sm:text-xl font-bold text-white flex flex-wrap items-center gap-2 leading-snug">
-              <span>{problem.leetcode_id ? `${problem.leetcode_id}. ` : ''}{problem.title}</span>
+            <h2 className="text-lg sm:text-2xl font-bold text-white flex flex-wrap items-center gap-2 leading-snug">
+              <span>{problem.title}</span>
 
               {(problem.leetcode_url || problem.source_url) && (
                 <a
@@ -187,6 +190,21 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress })
                   <FileText className="h-3.5 w-3.5" />
                   Solution Guide
                 </Link>
+              )}
+
+              {onSolve && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onSolve(problem.id);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 shadow-md transition-all ml-1 cursor-pointer"
+                  title="Open and solve in Online Judge"
+                >
+                  <Code className="h-3.5 w-3.5" />
+                  <span>Solve in Judge</span>
+                </button>
               )}
             </h2>
 

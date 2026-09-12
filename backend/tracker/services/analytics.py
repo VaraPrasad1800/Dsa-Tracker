@@ -27,8 +27,10 @@ def invalidate_user_analytics_cache(user_id):
         get_cache_key('revision_queue', user_id),
         f'digest:{user_id}',
     ]
-    for key in keys:
-        cache.delete(key)
+    try:
+        cache.delete_many(keys)
+    except Exception:
+        pass
 
 def update_user_streak(user, solved_date=None):
     if not solved_date:

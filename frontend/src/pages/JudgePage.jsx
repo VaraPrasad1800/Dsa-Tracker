@@ -166,6 +166,14 @@ export default function JudgePage({ initialProblemId }) {
     enabled: !!selectedProblemId,
   });
 
+  // Pre-fill custom stdin with the problem's first visible test case input
+  useEffect(() => {
+    const firstInput = testCasesData?.test_cases?.[0]?.input_text;
+    if (firstInput !== undefined && firstInput !== null) {
+      setCustomStdin((prev) => (!prev.trim() ? firstInput : prev));
+    }
+  }, [testCasesData, selectedProblemId]);
+
   // Fetch submission history
   const { data: submissionsData } = useQuery({
     queryKey: ['submissions_history', selectedProblemId],
@@ -274,6 +282,7 @@ export default function JudgePage({ initialProblemId }) {
     setRunResult(null);
     setSubmitResult(null);
     setActiveBottomTab('testcases');
+    setCustomStdin('');
   };
 
   const handleOpenSubmissionDetail = async (subId) => {

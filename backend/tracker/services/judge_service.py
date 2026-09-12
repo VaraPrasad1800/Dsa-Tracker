@@ -40,30 +40,9 @@ logger = logging.getLogger(__name__)
 
 def _prepare_executable_code(problem: Problem | None, language: str, source_code: str) -> str:
     """
-    If the user submitted a complete program, return as-is.
-    If the user submitted a class Solution without main/driver, and a harness is configured,
-    attach the harness as a fallback driver.
+    Return user submitted source code as-is for complete standalone program execution.
+    No harnesses, class Solution wrappers, or synthetic drivers are appended.
     """
-    # Check if user already defined a driver / main
-    if language == 'python':
-        if 'if __name__' in source_code or 'sys.stdin.read' in source_code or '__main__' in source_code or 'def main(' in source_code or 'def solve(' in source_code:
-            return source_code
-    elif language in ('cpp', 'c'):
-        if 'int main(' in source_code or 'void main(' in source_code or 'main(' in source_code:
-            return source_code
-    elif language == 'java':
-        if 'static void main(' in source_code:
-            return source_code
-
-    # If it's a class Solution without main, and a harness is available, append it as fallback
-    if problem:
-        try:
-            tmpl = LanguageTemplate.objects.get(problem=problem, language=language)
-            if tmpl.harness_code.strip():
-                return f"{source_code}\n\n{tmpl.harness_code}"
-        except (LanguageTemplate.DoesNotExist, Exception):
-            pass
-
     return source_code
 
 
@@ -127,34 +106,19 @@ def run_code_for_user(user, problem_id: str, language: str, source_code: str, st
         except (Problem.DoesNotExist, ValueError):
             pass
 
-    if problem and getattr(problem, 'execution_mode', 'STDIN_STDOUT') == 'FUNCTION':
-        user_has_driver = False
-        if language == 'python':
-            user_has_driver = 'if __name__' in source_code or 'sys.stdin.read' in source_code or '__main__' in source_code
-        elif language in ('cpp', 'c'):
-            user_has_driver = 'int main(' in source_code or 'void main(' in source_code or 'main(' in source_code
-        elif language == 'java':
-            user_has_driver = 'static void main(' in source_code
-
-        if not user_has_driver:
-            tmpl = LanguageTemplate.objects.filter(problem=problem, language=language).first()
-            if not tmpl or not tmpl.harness_code.strip():
-                return {
-                    'status': 'CONFIGURATION_REQUIRED',
-                    'stdout': '',
-                    'stderr': '',
-                    'compile_error': 'Online Judge configuration unavailable for this problem. Missing execution harness driver.',
-                    'error': 'Online Judge configuration unavailable for this problem. Missing execution harness driver.',
-                    'execution_time_ms': 0,
-                    'memory_kb': 0,
-                }
-
     timing_cfg = resolve_execution_timing(problem, language)
-    executable_code = _prepare_executable_code(problem, language, source_code)
+
+    # If no custom stdin was supplied, fallback to the problem's first visible sample test case
+    effective_stdin = stdin
+    if (effective_stdin is None or not effective_stdin.strip()) and problem:
+        first_tc = TestCase.objects.filter(problem=problem, is_hidden=False).order_by('order').first()
+        if first_tc and first_tc.input_text:
+            effective_stdin = first_tc.input_text
+
     result = _sandbox_run(
         language=language,
-        source_code=executable_code,
-        stdin=stdin,
+        source_code=source_code,
+        stdin=effective_stdin or '',
         time_limit_seconds=timing_cfg.effective_time_limit_seconds,
         memory_limit_mb=timing_cfg.memory_limit_mb,
     )
@@ -211,32 +175,6 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
             'achievements_unlocked': [],
         }
 
-    # 4. If FUNCTION mode, check that either user supplied driver or a harness is configured
-    if getattr(problem, 'execution_mode', 'STDIN_STDOUT') == 'FUNCTION':
-        user_has_driver = False
-        if language == 'python':
-            user_has_driver = 'if __name__' in source_code or 'sys.stdin.read' in source_code or '__main__' in source_code
-        elif language in ('cpp', 'c'):
-            user_has_driver = 'int main(' in source_code or 'void main(' in source_code or 'main(' in source_code
-        elif language == 'java':
-            user_has_driver = 'static void main(' in source_code
-
-        if not user_has_driver:
-            tmpl = LanguageTemplate.objects.filter(problem=problem, language=language).first()
-            if not tmpl or not tmpl.harness_code.strip():
-                return {
-                    'submission_id': None,
-                    'verdict': 'CONFIGURATION_REQUIRED',
-                    'tests_passed': 0,
-                    'tests_total': 0,
-                    'execution_time_ms': 0,
-                    'memory_kb': 0,
-                    'compile_error': 'Execution harness driver not configured for this problem.',
-                    'error_message': 'Execution harness driver not configured for this problem.',
-                    'test_results': [],
-                    'points_awarded': 0,
-                }
-
     test_cases = [
         (tc.input_text, tc.expected_output, tc.is_hidden, tc.order)
         for tc in test_cases_qs
@@ -252,8 +190,7 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
         timing_cfg.base_time_limit_ms, time_limit, timing_cfg.cumulative_time_limit_ms
     )
 
-    # 4. Build executor and run with executable code (including harness if function mode)
-    executable_code = _prepare_executable_code(problem, language, source_code)
+    # 4. Build executor and run with complete standalone program
     executor_fn = get_test_executor(language, time_limit, memory_limit)
 
     def _executor_wrapper(source, stdin):
@@ -263,7 +200,7 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
     judge_result = run_against_test_cases(
         executor_fn=_executor_wrapper,
         test_cases=test_cases,
-        source_code=executable_code,
+        source_code=source_code,
         return_visible_details=True,
         cumulative_time_limit_ms=timing_cfg.cumulative_time_limit_ms,
         output_checker=problem_checker,

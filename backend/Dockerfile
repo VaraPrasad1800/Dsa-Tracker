@@ -6,7 +6,8 @@ ENV PYTHONUNBUFFERED 1
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    build-essential \
+    openjdk-17-jdk-headless \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 

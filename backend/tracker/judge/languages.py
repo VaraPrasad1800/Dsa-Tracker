@@ -42,9 +42,9 @@ SUPPORTED_LANGUAGES = {
         "display_name": "Java",
         "file_extension": "java",
         "compile_cmd": ["javac", "{source}"],
-        "run_cmd": ["java", "-Xmx128m", "-cp", "{workdir}", "{main_class}"],
+        "run_cmd": ["java", "-Xmx256m", "-cp", "{workdir}", "{main_class}"],
         "timeout_seconds": 5,
-        "memory_limit_mb": 128,
+        "memory_limit_mb": 256,
         "version_cmd": ["java", "-version"],
     },
 }

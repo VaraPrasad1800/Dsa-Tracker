@@ -103,6 +103,8 @@ def resolve_execution_timing(
     # 3. Memory limit
     explicit_mem = getattr(problem, 'memory_limit_mb', None) if problem else None
     mem_mb = explicit_mem if (explicit_mem and explicit_mem >= 16) else PLATFORM_DEFAULT_MEMORY_LIMIT_MB
+    if lang_key == 'java':
+        mem_mb = max(mem_mb, 256)
 
     # 4. Cumulative submission cap across all tests
     tests_count = max(1, total_tests)

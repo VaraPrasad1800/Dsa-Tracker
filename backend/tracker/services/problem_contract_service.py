@@ -74,8 +74,25 @@ def evaluate_problem_contract(problem: Problem, save: bool = False) -> Dict[str,
         if missing_harnesses:
             missing.append(f"Missing execution harness ({', '.join(missing_harnesses)})")
 
+    # 4. Check for SQL/Database non-algorithmic problems
+    is_database_problem = False
+    if problem.tags.filter(name__iexact='Database').exists():
+        is_database_problem = True
+    elif TestCase.objects.filter(problem=problem, expected_output__contains='+---').exists():
+        is_database_problem = True
+    elif (problem.description or '').startswith('Table: ') or 'Create table If Not Exists' in (problem.description or ''):
+        is_database_problem = True
+
+    if is_database_problem:
+        missing.append("Relational Database/SQL problem: algorithmic code execution is not supported")
+
     is_ready = len(missing) == 0
-    status = 'JUDGE_READY' if is_ready else 'CONFIGURATION_REQUIRED'
+    if is_database_problem:
+        status = 'NON_ALGORITHMIC_SQL'
+    elif is_ready:
+        status = 'JUDGE_READY'
+    else:
+        status = 'CONFIGURATION_REQUIRED'
 
     problem.is_judge_ready = is_ready
     problem.judge_readiness_status = status

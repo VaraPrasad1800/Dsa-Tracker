@@ -126,6 +126,29 @@ def serialize_to_stdin(args: List[Tuple[str, Any]]) -> str:
     return "\n".join(lines).strip()
 
 
+def clean_raw_output_text(raw_output: str) -> str:
+    """
+    Strips trailing explanation, note, or clarification blocks from raw output strings.
+    """
+    s = (raw_output or '').strip()
+    if not s:
+        return ""
+
+    # Cut off Explanation, Note, Because, Clarification, Example
+    cutoff_pattern = re.compile(
+        r'(?:\r?\n\s*|\s+)(?:Explanation|Note|Because|Clarification|Example)\s*[:\n][\s\S]*$',
+        re.IGNORECASE
+    )
+    s = cutoff_pattern.sub('', s).strip()
+
+    # Handle 'Return X, and...' patterns
+    ret_match = re.match(r'^return\s+([^\s,]+)', s, re.IGNORECASE)
+    if ret_match and (ret_match.group(1).isdigit() or ret_match.group(1).lower() in ('true', 'false')):
+        return ret_match.group(1)
+
+    return s
+
+
 def serialize_to_expected_stdout(raw_output: str, type_hint: str = "") -> str:
     """
     Converts raw example output (e.g. '[0, 1]' or 'true') into canonical expected STDOUT.
@@ -133,7 +156,8 @@ def serialize_to_expected_stdout(raw_output: str, type_hint: str = "") -> str:
     - boolean: 'true' or 'false'
     - primitive: stripped string
     """
-    val = parse_raw_value(raw_output, type_hint)
+    cleaned = clean_raw_output_text(raw_output)
+    val = parse_raw_value(cleaned, type_hint)
     if isinstance(val, list):
         if val and isinstance(val[0], list):
             # 2D array

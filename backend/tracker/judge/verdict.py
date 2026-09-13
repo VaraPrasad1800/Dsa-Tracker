@@ -102,21 +102,41 @@ def _tokenize(s: str) -> list[str]:
 # Per-strategy comparison functions
 # ---------------------------------------------------------------------------
 
+def _strip_outer_quotes(s: str) -> str:
+    s = s.strip()
+    if len(s) >= 2 and ((s[0] == '"' and s[-1] == '"') or (s[0] == "'" and s[-1] == "'")):
+        return s[1:-1]
+    return s
+
+
 def _check_exact(actual: str, expected: str) -> bool:
     return actual.strip() == expected.strip()
 
 
 def _check_normalized_text(actual: str, expected: str) -> bool:
-    if actual.strip() == expected.strip():
+    act_s = actual.strip()
+    exp_s = expected.strip()
+    if act_s == exp_s:
         return True
-    return _normalize_output(actual) == _normalize_output(expected)
+    if _normalize_output(actual) == _normalize_output(expected):
+        return True
+    # Strip matching outer quotes (e.g. '"bab"' vs 'bab')
+    if _strip_outer_quotes(act_s) == _strip_outer_quotes(exp_s):
+        return True
+    # Array token tolerance (e.g. '[0, 1]' vs '0 1')
+    act_tokens = _tokenize(act_s)
+    exp_tokens = _tokenize(exp_s)
+    if act_tokens and exp_tokens and act_tokens == exp_tokens:
+        return True
+    return False
 
 
-def _check_alternatives(actual: str, expected: str) -> bool:
+def _check_alternatives(actual: str, expected: str, strategy: str = 'NORMALIZED_TEXT') -> bool:
     """Pipe-separated alternatives: any one matching → accepted."""
     alternatives = expected.split('|')
+    sub_strategy = strategy if strategy != 'ALTERNATIVES' else 'NORMALIZED_TEXT'
     for alt in alternatives:
-        if _outputs_match(actual, alt.strip(), strategy='NORMALIZED_TEXT'):
+        if _outputs_match(actual, alt.strip(), strategy=sub_strategy):
             return True
     return False
 
@@ -245,7 +265,7 @@ def _outputs_match(actual: str, expected: str, strategy: str = 'NORMALIZED_TEXT'
     # Always respect pipe-separated alternatives if expected contains '|' and
     # the chosen strategy is not itself ALTERNATIVES (avoid infinite recursion).
     if '|' in expected and strategy != 'ALTERNATIVES':
-        return _check_alternatives(actual, expected)
+        return _check_alternatives(actual, expected, strategy=strategy)
 
     checker = _STRATEGY_MAP.get(strategy, _check_normalized_text)
     return checker(actual, expected)

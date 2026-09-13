@@ -100,7 +100,7 @@ jobs:
 
       - name: Run frontend tests
         working-directory: frontend
-        run: npm test --if-present
+        run: npm test
 
       - name: Run production build
         working-directory: frontend

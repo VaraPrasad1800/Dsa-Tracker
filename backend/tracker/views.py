@@ -260,6 +260,7 @@ class ProblemListView(APIView):
         response.data['counts'] = filter_counts
         return response
 
+
 class ProblemDetailView(APIView):
     permission_classes = [AllowAny]
 
@@ -529,9 +530,14 @@ class CompanyListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        companies = Company.objects.annotate(problem_count=Count('problems')).order_by('name')
+        search = request.query_params.get('search', '').strip()
+        companies = Company.objects.annotate(problem_count=Count('problems'))
+        if search:
+            companies = companies.filter(Q(name__icontains=search) | Q(slug__icontains=search))
+        companies = companies.order_by('name')
         serializer = CompanySerializer(companies, many=True, context={'request': request})
         return Response(serializer.data)
+
 
 class UserProgressView(APIView):
     permission_classes = [IsAuthenticated]

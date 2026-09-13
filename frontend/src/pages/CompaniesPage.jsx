@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Building2, ChevronRight, TrendingUp, Sparkles } from 'lucide-react';
+import { Building2, ChevronRight, TrendingUp, Sparkles, X } from 'lucide-react';
 import { problemsApi } from '../api/client';
 import EmptyState from '../components/common/EmptyState';
+import SearchBar from '../components/problems/SearchBar';
 
 export default function CompaniesPage({ onSelectCompany }) {
+  const [search, setSearch] = useState('');
+
   const { data: companies = [], isLoading, isError } = useQuery({
     queryKey: ['companies'],
     queryFn: async () => {
@@ -13,6 +16,16 @@ export default function CompaniesPage({ onSelectCompany }) {
       return res.data;
     },
   });
+
+  const filteredCompanies = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return companies;
+    return companies.filter((comp) => {
+      const nameMatch = comp.name && comp.name.toLowerCase().includes(q);
+      const slugMatch = comp.slug && comp.slug.toLowerCase().includes(q);
+      return nameMatch || slugMatch;
+    });
+  }, [companies, search]);
 
   if (isLoading) {
     return (
@@ -57,7 +70,40 @@ export default function CompaniesPage({ onSelectCompany }) {
         </div>
       </div>
 
-      {/* Company Grid */}
+      {/* Search and Results Summary */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="w-full sm:max-w-md">
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            onClear={() => setSearch('')}
+            placeholder="Search companies... (e.g. Google, Amazon, Meta)"
+          />
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-400 px-1">
+          {search.trim() ? (
+            <span>
+              Found <strong className="text-white font-semibold">{filteredCompanies.length}</strong> matching {filteredCompanies.length === 1 ? 'company' : 'companies'}
+            </span>
+          ) : (
+            <span>
+              Showing all <strong className="text-white font-semibold">{companies.length}</strong> companies
+            </span>
+          )}
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium transition cursor-pointer"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Company Grid / Empty State */}
       {companies.length === 0 ? (
         <div className="glass-card rounded-2xl p-8 border border-white/[0.07]">
           <EmptyState
@@ -66,9 +112,25 @@ export default function CompaniesPage({ onSelectCompany }) {
             body="Companies will appear here once problems are linked to company tags."
           />
         </div>
+      ) : filteredCompanies.length === 0 ? (
+        <div className="glass-card rounded-2xl p-10 border border-white/[0.07] text-center space-y-3">
+          <Building2 className="h-10 w-10 text-slate-500 mx-auto" />
+          <h3 className="text-base font-semibold text-white">No companies found</h3>
+          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+            No companies matching &quot;<span className="text-indigo-400 font-semibold">{search.trim()}</span>&quot;.
+          </p>
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white border border-white/10 transition cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
+            Clear search
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {companies.map((comp, idx) => {
+          {filteredCompanies.map((comp, idx) => {
             const solved = comp.user_progress?.solved || 0;
             const total = comp.problem_count || 0;
             const pct = total > 0 ? Math.round((solved / total) * 100) : 0;

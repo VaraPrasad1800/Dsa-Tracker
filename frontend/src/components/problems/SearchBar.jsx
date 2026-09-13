@@ -1,7 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import { Search, X, Sparkles } from 'lucide-react';
 
-export default function SearchBar({ value, onChange, onClear }) {
+export default function SearchBar({
+  value,
+  onChange,
+  onClear,
+  placeholder = "Search by title, pattern, company... (Press / to focus)",
+}) {
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -26,7 +31,7 @@ export default function SearchBar({ value, onChange, onClear }) {
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search by title, pattern, company... (Press / to focus)"
+        placeholder={placeholder}
         className="w-full pl-10 pr-16 py-2.5 text-xs sm:text-sm rounded-xl transition-all duration-200"
         style={{
           background: 'rgba(16, 16, 28, 0.75)',

@@ -100,7 +100,7 @@ export const problemsApi = {
   getProblem: (id) => api.get(`/problems/${id}/`),
   getProblemSolution: (id) => api.get(`/problems/${id}/solution/`),
   getTags: () => api.get('/problems/tags/'),
-  getCompanies: () => api.get('/problems/companies/'),
+  getCompanies: (params) => api.get('/problems/companies/', { params }),
   getCompanyProblems: (companyId, params) => api.get(`/problems/by-company/${companyId}/`, { params }),
   getTopicPractice: (topic) => api.get('/problems/practice/', { params: { topic } }),
 };

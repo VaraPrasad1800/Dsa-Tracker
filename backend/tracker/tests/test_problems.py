@@ -1,4 +1,4 @@
-﻿from django.test import TestCase
+from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework.test import APIClient
@@ -75,3 +75,27 @@ class ProblemTrackingTests(TestCase):
         res_a_detail = self.client.get(reverse('problem-detail', kwargs={'pk': self.prob1.id}), **self.auth_a)
         self.assertIsNotNone(res_a_detail.data['user_progress'])
         self.assertEqual(res_a_detail.data['user_progress']['status'], 'SOLVED')
+
+    def test_company_list_and_search(self):
+        Company.objects.create(name='Amazon', slug='amazon')
+        Company.objects.create(name='Microsoft', slug='microsoft')
+
+        # List all companies
+        res = self.client.get(reverse('company-list'))
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 3)
+
+        # Search exact
+        res_amz = self.client.get(reverse('company-list') + '?search=Amazon')
+        self.assertEqual(len(res_amz.data), 1)
+        self.assertEqual(res_amz.data[0]['name'], 'Amazon')
+
+        # Search case-insensitive partial with whitespace
+        res_part = self.client.get(reverse('company-list') + '?search=  mic  ')
+        self.assertEqual(len(res_part.data), 1)
+        self.assertEqual(res_part.data[0]['name'], 'Microsoft')
+
+        # Search non-existent
+        res_none = self.client.get(reverse('company-list') + '?search=NonExistentCompany')
+        self.assertEqual(len(res_none.data), 0)
+

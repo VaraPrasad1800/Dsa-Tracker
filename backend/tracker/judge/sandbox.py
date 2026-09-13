@@ -7,15 +7,26 @@ SECURITY NOTES
   after execution, regardless of outcome.
 * Source code size and stdin size are checked before execution.
 * Processes are killed after the time limit — no runaway processes.
-* The subprocess inherits a minimal environment (only PATH).
+* The subprocess inherits a minimal environment (only PATH + essential vars).
+  No Django secrets, DB credentials, or API keys are forwarded.
 * Network access is NOT blocked at the OS level in local dev mode (that
-  requires Docker + network namespaces). In production, the Docker Compose
-  setup provides proper network isolation.
+  requires Docker + network namespaces). In production, the Docker setup
+  provides proper network isolation.
 * Memory limits on Windows cannot be enforced via resource.setrlimit (POSIX
   only). Memory is monitored post-run via psutil and the verdict is set to
   MLE if exceeded. On Linux/Docker this is kernel-enforced.
 * The Django web worker NEVER executes untrusted code directly. All execution
   goes through this module which is called from judge_service.py.
+
+PRODUCTION DIAGNOSTICS
+----------------------
+Every compiler/runtime invocation emits a DEBUG log line recording:
+  - the executable name and its resolved path (shutil.which result)
+  - the PATH that the subprocess will see
+  - the exit code and elapsed time
+If a compiler is missing from the Docker image, an ERROR line is logged
+immediately before the FileNotFoundError is raised, making infra problems
+trivially identifiable in Render logs without exposing user source code.
 """
 
 import os
@@ -24,8 +35,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+
 
 from tracker.scoring import (
     JUDGE_MAX_SOURCE_SIZE_BYTES,
@@ -51,15 +66,43 @@ class ExecutionResult:
 
 
 def _safe_env() -> dict:
-    """Minimal safe environment for the subprocess."""
+    """
+    Minimal safe environment forwarded to compiler/runtime subprocesses.
+
+    Security: we forward ONLY what compilers and runtimes need to function.
+    No Django settings, no database credentials, no API keys are passed.
+
+    PATH     — compilers and runtimes must be locatable (gcc, g++, java, etc.)
+    JAVA_HOME — JVM needs this to locate shared libraries on Linux
+    HOME     — some tools (e.g. Java) write temp files under HOME
+    LANG/LC_ALL — gcc emits UTF-8 error messages only when locale is set
+    Windows-only vars (SYSTEMROOT, TEMP, etc.) — required by Windows tools
+    """
     env = {}
-    # Only forward PATH so compilers and interpreters can be found.
+
+    # PATH is always forwarded — compilers must be findable.
     if "PATH" in os.environ:
         env["PATH"] = os.environ["PATH"]
-    # On Windows, tools need SYSTEMROOT, TEMP, SYSTEMDRIVE, etc.
-    for key in ("SYSTEMROOT", "SYSTEMDRIVE", "TEMP", "TMP", "HOME", "USERPROFILE", "PATHEXT", "COMSPEC"):
+
+    # Linux / Docker: JAVA_HOME lets the JVM locate its shared libraries.
+    # Set in the Dockerfile via ENV JAVA_HOME=/usr/lib/jvm/default-java.
+    if "JAVA_HOME" in os.environ:
+        env["JAVA_HOME"] = os.environ["JAVA_HOME"]
+
+    # HOME: some tools (Java, gcc temp files) reference it on Linux.
+    if "HOME" in os.environ:
+        env["HOME"] = os.environ["HOME"]
+
+    # Locale: gcc/g++ produce readable UTF-8 error messages when set.
+    for key in ("LANG", "LC_ALL", "LC_CTYPE"):
         if key in os.environ:
             env[key] = os.environ[key]
+
+    # Windows-only: required by native Windows tools.
+    for key in ("SYSTEMROOT", "SYSTEMDRIVE", "TEMP", "TMP", "USERPROFILE", "PATHEXT", "COMSPEC"):
+        if key in os.environ:
+            env[key] = os.environ[key]
+
     return env
 
 
@@ -72,16 +115,46 @@ def _check_sizes(source: str, stdin: str) -> Optional[str]:
     return None
 
 
+def _log_compiler_discovery(cmd: list, step: str) -> None:
+    """
+    Emit a structured diagnostic log entry before each subprocess invocation.
+
+    Logged (SAFE — no source code, no secrets):
+      step       — 'compile' or 'run'
+      executable — first token of the command (e.g. 'g++', 'javac')
+      resolved   — absolute path returned by shutil.which, or None if not on PATH
+      path       — the PATH the subprocess will use
+    """
+    exe = cmd[0] if cmd else "<empty>"
+    resolved = shutil.which(exe, path=os.environ.get("PATH", ""))
+    logger.debug(
+        "[judge][%s] executable=%r  resolved=%r  PATH=%s",
+        step, exe, resolved, os.environ.get("PATH", "<unset>"),
+    )
+    if resolved is None:
+        logger.error(
+            "[judge][%s] TOOL NOT FOUND: %r is not on PATH=%s — "
+            "this is an infrastructure error, not a user code error. "
+            "Check that the Docker image has the required compiler installed.",
+            step, exe, os.environ.get("PATH", "<unset>"),
+        )
+
+
 def _run_subprocess(
     cmd: list[str],
     stdin_data: str,
     time_limit_seconds: float,
     cwd: str,
+    step: str = "run",
 ) -> tuple[str, str, int, float, int]:
     """
     Run *cmd* with *stdin_data* and return (stdout, stderr, returncode, elapsed_ms, memory_kb).
     Kills the process if it exceeds *time_limit_seconds*.
+
+    *step* is 'compile' or 'run' — used only in diagnostic log messages.
     """
+    _log_compiler_discovery(cmd, step)
+
     start = time.monotonic()
     proc = None
     try:
@@ -111,9 +184,11 @@ def _run_subprocess(
             proc.kill()
             proc.communicate()
             elapsed_ms = int((time.monotonic() - start) * 1000)
+            logger.info("[judge][%s] TLE after %dms (limit=%.1fs)", step, elapsed_ms, time_limit_seconds)
             return "", "Time limit exceeded.", -9, elapsed_ms, 0
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
+        logger.debug("[judge][%s] exit_code=%d  elapsed_ms=%d", step, proc.returncode, elapsed_ms)
         return (
             stdout_data.decode("utf-8", errors="replace"),
             stderr_data.decode("utf-8", errors="replace"),
@@ -121,10 +196,21 @@ def _run_subprocess(
             elapsed_ms,
             peak_mem_kb,
         )
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         tool = cmd[0] if cmd else "Executable"
-        return "", f"Compiler or runtime not found: '{tool}'. Please verify that '{tool}' is installed on the host.", -1, elapsed_ms, 0
+        logger.error(
+            "[judge][%s] FileNotFoundError: %r not found. PATH=%s — "
+            "Docker image is missing a required compiler/runtime.",
+            step, tool, os.environ.get("PATH", "<unset>"),
+        )
+        return (
+            "",
+            f"Compiler or runtime not found: '{tool}'. Please verify that '{tool}' is installed on the host.",
+            -1,
+            elapsed_ms,
+            0,
+        )
     except Exception as exc:
         if proc:
             try:
@@ -179,7 +265,7 @@ def execute(
                 for part in compile_cmd_template
             ]
             stdout, stderr, returncode, elapsed_ms, _ = _run_subprocess(
-                compile_cmd, "", 30.0, workdir  # generous compile timeout
+                compile_cmd, "", 30.0, workdir, step="compile"  # generous compile timeout
             )
             if returncode != 0:
                 return ExecutionResult(

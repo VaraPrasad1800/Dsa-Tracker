@@ -113,9 +113,22 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ---------------------------------------------------------------------------
 # CORS
-CORS_ALLOW_ALL_ORIGINS = True
+# ---------------------------------------------------------------------------
+# Production: set CORS_ALLOWED_ORIGINS to a comma-separated list of allowed
+# frontend origins, e.g. CORS_ALLOWED_ORIGINS=https://your-app.vercel.app
+#
+# Development: leave unset → CORS_ALLOW_ALL_ORIGINS = True (safe locally).
+# ---------------------------------------------------------------------------
 CORS_ALLOW_CREDENTIALS = True
+
+_cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '').strip()
+if _cors_origins_env:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
+else:
+    CORS_ALLOW_ALL_ORIGINS = True  # dev fallback — always set in production
 
 # Django REST Framework
 REST_FRAMEWORK = {

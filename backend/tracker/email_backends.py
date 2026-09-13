@@ -52,12 +52,14 @@ class SendGridBackend(BaseEmailBackend):
             )
             # Lazy import to avoid import-time dependency when key is absent
             from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail, Email, Cc, Bcc
+            from sendgrid.helpers.mail import Mail, Email, Cc, Bcc, TrackingSettings, ClickTracking
             self._sg = SendGridAPIClient(self.api_key)
             self._Mail = Mail
             self._Email = Email
             self._Cc = Cc
             self._Bcc = Bcc
+            self._TrackingSettings = TrackingSettings
+            self._ClickTracking = ClickTracking
 
     def send_messages(self, email_messages):
         """
@@ -124,7 +126,14 @@ class SendGridBackend(BaseEmailBackend):
             for addr in message.bcc:
                 mail_obj.add_bcc(self._Bcc(sanitize_address(addr, message.encoding)))
 
-        # 6. Send via SendGrid API
+        # 6. Disable click tracking specifically for transactional emails if requested
+        if getattr(message, 'disable_click_tracking', False):
+            logger.info("[EMAIL DEBUG] Disabling SendGrid click tracking for transactional message")
+            ts = self._TrackingSettings()
+            ts.click_tracking = self._ClickTracking(enable=False, enable_text=False)
+            mail_obj.tracking_settings = ts
+
+        # 7. Send via SendGrid API
         logger.info("[EMAIL DEBUG] attempting SendGrid send")
         response = self._sg.client.mail.send.post(request_body=mail_obj.get())
         logger.info("[EMAIL DEBUG] SendGrid response status: %s", response.status_code)

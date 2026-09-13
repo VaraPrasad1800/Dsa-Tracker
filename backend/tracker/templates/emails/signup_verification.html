@@ -29,7 +29,7 @@
       <h1>Confirm your email address</h1>
       <p>Hi <strong style="color: #94a3b8;">{{ username }}</strong>,</p>
       <p>Welcome to DSA Tracker! To finish creating your account and start your interview prep, please verify your email address by clicking the button below. The link expires in <strong style="color:#f1f5f9;">{{ expiry_hours }} hour{{ expiry_hours|pluralize }}</strong>.</p>
-      <a class="button" href="{{ verification_link }}" target="_blank" rel="noopener noreferrer">Verify Email</a>
+      <a class="button" href="{{ verification_link }}" clicktracking="off" target="_blank" rel="noopener noreferrer">Verify Email</a>
       <p class="alt">If the button doesn't work, copy and paste this link into your browser:</p>
       <div class="code">{{ verification_link }}</div>
       <p class="muted">You're receiving this email because you signed up for an account on DSA Tracker. If you didn't create this account, you can safely ignore this message.</p>

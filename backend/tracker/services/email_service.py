@@ -24,7 +24,7 @@ def _frontend_url():
     return getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
 
 
-def _deliver(subject, recipient_email, template_name, context, html_message=None, text_message=None):
+def _deliver(subject, recipient_email, template_name, context, html_message=None, text_message=None, disable_click_tracking=False):
     """Deliver an email using the configured backend (SendGrid or console/SMTP)."""
     recipient = recipient_email or ''
     html = html_message or render_to_string(template_name, context)
@@ -35,18 +35,23 @@ def _deliver(subject, recipient_email, template_name, context, html_message=None
     logger.info("[EMAIL DEBUG] backend selected: %s", backend_name)
 
     try:
-        sent = mail.send_mail(
+        from django.core.mail import EmailMultiAlternatives
+        msg = EmailMultiAlternatives(
             subject=subject,
-            message=text,
-            html_message=html,
+            body=text,
             from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@dsatracker.com'),
-            recipient_list=[recipient],
-            fail_silently=False,
+            to=[recipient],
         )
+        if html:
+            msg.attach_alternative(html, 'text/html')
+        if disable_click_tracking:
+            msg.disable_click_tracking = True
+
+        sent = msg.send(fail_silently=False)
         if sent:
-            logger.info('[EMAIL DEBUG] mail.send_mail succeeded (sent=%d) to %s', sent, recipient)
+            logger.info('[EMAIL DEBUG] mail send succeeded (sent=%d) to %s', sent, recipient)
         else:
-            logger.warning('[EMAIL DEBUG] mail.send_mail returned 0 for %s; check backend configuration.', recipient)
+            logger.warning('[EMAIL DEBUG] mail send returned 0 for %s; check backend configuration.', recipient)
         return sent
     except Exception as exc:
         logger.error('[EMAIL DEBUG] SendGrid/mail send exception for "%s" to %s: %s', subject, recipient, exc, exc_info=True)
@@ -55,7 +60,7 @@ def _deliver(subject, recipient_email, template_name, context, html_message=None
 
 def send_verification_email(user, token):
     """Send email verification link to a newly registered user."""
-    verification_link = f"{_frontend_url()}/verify-email/?token={token}"
+    verification_link = f"{_frontend_url()}/verify-email?token={token}"
     context = {
         'username': user.username,
         'verification_link': verification_link,
@@ -67,12 +72,13 @@ def send_verification_email(user, token):
         template_name='emails/signup_verification.html',
         context=context,
         text_message=f'Verify your DSA Tracker account: {verification_link}',
+        disable_click_tracking=True,
     )
 
 
 def send_password_reset_email(user, token):
     """Send password reset link to a user who requested one."""
-    reset_link = f"{_frontend_url()}/reset-password/?token={token}"
+    reset_link = f"{_frontend_url()}/reset-password?token={token}"
     context = {
         'username': user.username,
         'reset_link': reset_link,
@@ -84,4 +90,5 @@ def send_password_reset_email(user, token):
         template_name='emails/password_reset.html',
         context=context,
         text_message=f'Reset your DSA Tracker password: {reset_link}',
+        disable_click_tracking=True,
     )

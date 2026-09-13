@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { extractError } from '../../utils/errors';
+import { extractError, extractErrorCode } from '../../utils/errors';
 import AuthLayout from './AuthLayout';
 import { Field, SubmitButton, ErrorBanner, SuccessBanner } from './AuthFields';
 
@@ -9,22 +9,29 @@ export default function VerifyEmailPage() {
   const { verifyEmail, resendVerification } = useAuth();
   const [searchParams] = useSearchParams();
   const location = useLocation();
-  const token = searchParams.get('token');
+  const token = (searchParams.get('token') || '').trim();
   const [email, setEmail] = useState(location.state?.email || '');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const hasRequestedRef = useRef(false);
 
   // Auto-verify on load when a token is present (from the email link).
   useEffect(() => {
-    if (token) {
+    if (token && !hasRequestedRef.current) {
+      hasRequestedRef.current = true;
       const verify = async () => {
         setSubmitting(true);
         try {
           const res = await verifyEmail(token);
           setSuccess(res.message || 'Email verified successfully. You can now log in.');
         } catch (err) {
-          setError(extractError(err));
+          const code = extractErrorCode(err);
+          if (code === 'already_used') {
+            setSuccess('Your email address is already verified! You can now log in.');
+          } else {
+            setError(extractError(err));
+          }
         } finally {
           setSubmitting(false);
         }

@@ -36,7 +36,7 @@ class AuthFlowTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         body = mail.outbox[0].body
         self.assertIn('verify-email', body)
-        token_match = re.search(r'verify-email/\?token=([\w-]+)', body)
+        token_match = re.search(r'verify-email/?\?token=([\w-]+)', body)
         self.assertIsNotNone(token_match)
         token = token_match.group(1)
 
@@ -96,7 +96,7 @@ class AuthFlowTests(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
         body = mail.outbox[0].body
-        token_match = re.search(r'reset-password/\?token=([\w-]+)', body)
+        token_match = re.search(r'reset-password/?\?token=([\w-]+)', body)
         self.assertIsNotNone(token_match)
         reset_token = token_match.group(1)
 

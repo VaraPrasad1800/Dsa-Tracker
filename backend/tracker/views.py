@@ -1001,28 +1001,61 @@ class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
+        logger.info("[VERIFY DEBUG] verification endpoint reached")
         token = (request.data.get('token') or '').strip()
-        if not token:
+        has_token = bool(token)
+        logger.info("[VERIFY DEBUG] token received: %s", str(has_token).lower())
+        if not has_token:
             return Response({'error': 'Token is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        logger.info("[VERIFY DEBUG] token length: %d", len(token))
         token_hash = hash_token(token)
+        logger.info("[VERIFY DEBUG] token hash calculated")
+
         try:
             profile = UserProfile.objects.select_related('user').get(email_verification_token_hash=token_hash)
+            logger.info("[VERIFY DEBUG] matching token record found: true")
+            logger.info("[VERIFY DEBUG] user found: true")
         except UserProfile.DoesNotExist:
+            logger.warning("[VERIFY DEBUG] matching token record found: false")
+            logger.warning("[VERIFY DEBUG] user found: false")
             return Response({'error': 'Invalid or expired verification token.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if is_token_expired(profile.email_verification_sent_at, getattr(settings, 'EMAIL_VERIFICATION_EXPIRY_HOURS', 24)):
+        # Check if already verified (preserve single-use semantics: cannot verify twice)
+        if profile.is_email_verified:
+            logger.info("[VERIFY DEBUG] token already used: true")
+            return Response({
+                'error': 'This verification token has already been used. Please log in.',
+                'code': 'already_used',
+                'user': {
+                    'id': profile.user.id,
+                    'username': profile.user.username,
+                    'email': profile.user.email,
+                    'is_email_verified': True,
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info("[VERIFY DEBUG] token already used: false")
+        expired = is_token_expired(profile.email_verification_sent_at, getattr(settings, 'EMAIL_VERIFICATION_EXPIRY_HOURS', 24))
+        logger.info("[VERIFY DEBUG] token expired: %s", str(expired).lower())
+        if expired:
             return Response({'error': 'Verification link expired. Please request a new one.', 'code': 'expired'},
                             status=status.HTTP_400_BAD_REQUEST)
 
         profile.is_email_verified = True
-        profile.email_verification_token_hash = ''
-        profile.email_verification_sent_at = None
-        profile.save()
+        # Do not immediately clear email_verification_token_hash so subsequent requests can detect 'already_used'
+        profile.save(update_fields=['is_email_verified'])
+        logger.info("[VERIFY DEBUG] verification successful")
 
-        return Response({'message': 'Email verified successfully. You can now log in.',
-                         'user': {'id': profile.user.id, 'username': profile.user.username,
-                                  'email': profile.user.email, 'is_email_verified': True}}, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'Email verified successfully. You can now log in.',
+            'user': {
+                'id': profile.user.id,
+                'username': profile.user.username,
+                'email': profile.user.email,
+                'is_email_verified': True,
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class ResendVerificationView(APIView):

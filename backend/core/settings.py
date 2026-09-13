@@ -167,9 +167,9 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'user': '120/min',
-        'judge_run': '10/min',
-        'judge_submit': '5/min',
+        'user': '120/hour',
+        'judge_run': '20/min',
+        'judge_submit': '10/min',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }

@@ -36,7 +36,7 @@ class JudgeThrottleTests(TestCase):
         cache.clear()
 
     @patch('tracker.services.judge_service.run_code_for_user')
-    def test_run_code_throttle_limit_10_per_minute(self, mock_run):
+    def test_run_code_throttle_limit_20_per_minute(self, mock_run):
         mock_run.return_value = {
             'status': 'OK',
             'stdout': 'hello',
@@ -53,8 +53,8 @@ class JudgeThrottleTests(TestCase):
             'stdin': '',
         }
 
-        # 10 requests should succeed (HTTP 200)
-        for i in range(10):
+        # 20 requests should succeed (HTTP 200)
+        for i in range(20):
             response = self.client.post('/api/run-code/', payload, format='json')
             self.assertEqual(
                 response.status_code,
@@ -62,22 +62,22 @@ class JudgeThrottleTests(TestCase):
                 f"Request {i+1} failed with status {response.status_code}: {response.data}"
             )
 
-        # 11th request within the same minute should be throttled (HTTP 429)
-        response_11 = self.client.post('/api/run-code/', payload, format='json')
-        self.assertEqual(response_11.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        self.assertIn('Retry-After', response_11.headers)
+        # 21st request within the same minute should be throttled (HTTP 429)
+        response_21 = self.client.post('/api/run-code/', payload, format='json')
+        self.assertEqual(response_21.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn('Retry-After', response_21.headers)
 
     @patch('tracker.tasks.run_submission_task.delay')
-    def test_submit_code_throttle_limit_5_per_minute(self, mock_delay):
+    def test_submit_code_throttle_limit_10_per_minute(self, mock_delay):
         payload = {
             'problem_id': str(self.problem.id),
             'language': 'python',
             'source_code': 'print("hello")',
         }
 
-        # First 5 submits should be accepted (HTTP 202).
+        # First 10 submits should be accepted (HTTP 202).
         # We delete/update previous submission each time so the pending check doesn't 409.
-        for i in range(5):
+        for i in range(10):
             # Clean up pending submissions to isolate the rate throttle from the 409 pending check
             Submission.objects.filter(user=self.user, problem=self.problem, verdict='PENDING').update(verdict='ACCEPTED')
             response = self.client.post('/api/submit/', payload, format='json')
@@ -87,13 +87,13 @@ class JudgeThrottleTests(TestCase):
                 f"Request {i+1} failed with status {response.status_code}: {response.data}"
             )
 
-        # Clean up pending submissions again before 6th request
+        # Clean up pending submissions again before 11th request
         Submission.objects.filter(user=self.user, problem=self.problem, verdict='PENDING').update(verdict='ACCEPTED')
 
-        # 6th submit within the same minute should be throttled (HTTP 429)
-        response_6 = self.client.post('/api/submit/', payload, format='json')
-        self.assertEqual(response_6.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
-        self.assertIn('Retry-After', response_6.headers)
+        # 11th submit within the same minute should be throttled (HTTP 429)
+        response_11 = self.client.post('/api/submit/', payload, format='json')
+        self.assertEqual(response_11.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertIn('Retry-After', response_11.headers)
 
     def test_duplicate_pending_submission_returns_409(self):
         Submission.objects.create(

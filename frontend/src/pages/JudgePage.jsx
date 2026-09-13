@@ -815,6 +815,8 @@ export default function JudgePage({ initialProblemId }) {
                             ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
                             : (submitResult.verdict === 'TIME_LIMIT_EXCEEDED' || submitResult.verdict === 'TLE')
                             ? 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                            : submitResult.verdict === 'PENDING'
+                            ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400'
                             : 'bg-rose-500/10 border border-rose-500/20 text-rose-400'
                         }`}
                       >
@@ -823,30 +825,40 @@ export default function JudgePage({ initialProblemId }) {
                             <CheckCircle2 className="h-5 w-5" />
                           ) : (submitResult.verdict === 'TIME_LIMIT_EXCEEDED' || submitResult.verdict === 'TLE') ? (
                             <Clock className="h-5 w-5 text-amber-400" />
+                          ) : submitResult.verdict === 'PENDING' ? (
+                            <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
                           ) : (
                             <XCircle className="h-5 w-5" />
                           )}
                           <span className="text-sm font-bold">
-                            {submitResult.verdict === 'TLE' ? 'TIME LIMIT EXCEEDED' : submitResult.verdict}
+                            {submitResult.verdict === 'TLE'
+                              ? 'TIME LIMIT EXCEEDED'
+                              : submitResult.verdict === 'PENDING'
+                              ? 'EVALUATING IN SANDBOX...'
+                              : submitResult.verdict}
                           </span>
-                          <span className="text-xs text-slate-400 ml-2">
-                            ({submitResult.tests_passed}/{submitResult.tests_total} passed)
-                          </span>
+                          {submitResult.tests_total ? (
+                            <span className="text-xs text-slate-400 ml-2">
+                              ({submitResult.tests_passed ?? 0}/{submitResult.tests_total} passed)
+                            </span>
+                          ) : null}
                         </div>
 
-                        <div className="flex items-center gap-4 text-xs text-slate-300">
-                          <span className="flex items-center gap-1" title="Measured program execution time">
-                            <Clock className="h-3.5 w-3.5 text-slate-400" />
-                            {submitResult.execution_time_ms} ms
-                            {submitResult.time_limit_ms ? (
-                              <span className="text-slate-500 font-sans text-[11px]">/ {submitResult.time_limit_ms}ms limit</span>
-                            ) : null}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Cpu className="h-3.5 w-3.5 text-slate-400" />
-                            {Math.round(submitResult.memory_kb / 1024)} MB
-                          </span>
-                        </div>
+                        {submitResult.verdict !== 'PENDING' && (
+                          <div className="flex items-center gap-4 text-xs text-slate-300">
+                            <span className="flex items-center gap-1" title="Measured program execution time">
+                              <Clock className="h-3.5 w-3.5 text-slate-400" />
+                              {submitResult.execution_time_ms ?? 0} ms
+                              {submitResult.time_limit_ms ? (
+                                <span className="text-slate-500 font-sans text-[11px]">/ {submitResult.time_limit_ms}ms limit</span>
+                              ) : null}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Cpu className="h-3.5 w-3.5 text-slate-400" />
+                              {Math.round((submitResult.memory_kb || 0) / 1024)} MB
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Diagnostic details if compilation or test error */}

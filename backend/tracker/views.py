@@ -1709,6 +1709,8 @@ class SubmitCodeView(APIView):
             'verdict': 'PENDING',
             'tests_passed': 0,
             'tests_total': 0,
+            'execution_time_ms': 0,
+            'memory_kb': 0,
         }, status=status.HTTP_202_ACCEPTED)
 
 

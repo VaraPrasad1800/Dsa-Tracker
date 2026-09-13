@@ -273,7 +273,7 @@ export default function StatsSummary({ stats, onSelectFilterTopic, onPracticeTop
                             e.stopPropagation();
                             onPracticeTopic(name);
                           }}
-                          title={`Practice ${name} in online judge`}
+                          title={`Practice ${name} problems`}
                           className="px-1.5 py-1 border-l hover:bg-white/10 transition flex items-center justify-center"
                           style={{
                             borderColor: isCustomFocus ? 'rgba(99,102,241,0.2)' : 'rgba(244,63,94,0.2)',

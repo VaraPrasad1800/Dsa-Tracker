@@ -17,7 +17,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from tracker.models import (
-    Challenge, ChallengeProblem, Problem, Submission,
+    Challenge, ChallengeProblem, Problem,
     UserProblemProgress, ReviewHistory,
 )
 from tracker.scoring import (
@@ -131,28 +131,32 @@ def _compute_progress(challenge: Challenge, user) -> dict:
             created_at__gte=challenge.start_time,
         ).count()
     elif challenge.challenge_problems.exists():
-        # Specific problem list — check Accepted submissions after start
+        # Specific problem list — check solved problems after start
         completed = 0
         cp_list = challenge.challenge_problems.select_related('problem')
         for cp in cp_list:
-            has_accepted = Submission.objects.filter(
+            is_solved = UserProblemProgress.objects.filter(
                 user=user,
                 problem=cp.problem,
-                verdict='ACCEPTED',
+                status='SOLVED',
+                updated_at__gte=challenge.start_time,
+            ).exists() or ReviewHistory.objects.filter(
+                progress__user=user,
+                progress__problem=cp.problem,
+                action='SOLVED',
                 created_at__gte=challenge.start_time,
             ).exists()
-            if has_accepted and not cp.completed:
+            if is_solved and not cp.completed:
                 cp.completed = True
                 cp.completed_at = now
                 cp.save(update_fields=['completed', 'completed_at'])
             if cp.completed:
                 completed += 1
-        # Also count progress-based (keyboard shortcuts S) if no submissions
         if completed == 0:
             completed = _count_leitner_solved_for_challenge(challenge, user)
     else:
-        # Filter-based: count Accepted submissions matching filters
-        completed = _count_filtered_submissions(challenge, user)
+        # Filter-based: count solved problems matching filters
+        completed = _count_filtered_solved(challenge, user)
 
     target = challenge.target_count
     is_complete = completed >= target
@@ -171,11 +175,11 @@ def _compute_progress(challenge: Challenge, user) -> dict:
     }
 
 
-def _count_filtered_submissions(challenge: Challenge, user) -> int:
-    qs = Submission.objects.filter(
+def _count_filtered_solved(challenge: Challenge, user) -> int:
+    qs = UserProblemProgress.objects.filter(
         user=user,
-        verdict='ACCEPTED',
-        created_at__gte=challenge.start_time,
+        status='SOLVED',
+        updated_at__gte=challenge.start_time,
     )
     if challenge.difficulty_filter:
         qs = qs.filter(problem__difficulty=challenge.difficulty_filter)
@@ -183,8 +187,10 @@ def _count_filtered_submissions(challenge: Challenge, user) -> int:
         qs = qs.filter(problem__tags=challenge.topic_filter)
     if challenge.company_filter:
         qs = qs.filter(problem__companies=challenge.company_filter)
-    # Count distinct problems (not submissions)
-    return qs.values('problem_id').distinct().count()
+    count = qs.values('problem_id').distinct().count()
+    if count == 0:
+        return _count_leitner_solved_for_challenge(challenge, user)
+    return count
 
 
 def _count_leitner_solved_for_challenge(challenge: Challenge, user) -> int:

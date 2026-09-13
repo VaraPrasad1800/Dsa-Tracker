@@ -168,8 +168,6 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'user': '120/hour',
-        'judge_run': '20/min',
-        'judge_submit': '10/min',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
@@ -177,7 +175,7 @@ REST_FRAMEWORK = {
 # OpenAPI / Swagger Documentation
 SPECTACULAR_SETTINGS = {
     'TITLE': 'DSA Tracker API',
-    'DESCRIPTION': 'Production-grade API for DSA Tracker — algorithmic problem bank, online judge, Leitner spaced repetition, and behavioral analytics.',
+    'DESCRIPTION': 'Production-grade API for DSA Tracker — algorithmic problem bank, Leitner spaced repetition, and behavioral analytics.',
     'VERSION': 'v1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,

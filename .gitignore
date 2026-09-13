@@ -12,6 +12,7 @@ db.sqlite3-journal
 db.sqlite3.backup
 *.backup
 data_dump.json
+core_data_backup.json
 media
 
 # If your build process includes running collectstatic, then you probably don't need or want to include staticfiles/

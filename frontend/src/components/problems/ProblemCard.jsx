@@ -230,24 +230,24 @@ function ProblemCardInner({ problem, onSelect, onQuickUpdateStatus, onSolve }) {
         </div>
 
         <div className="flex items-center gap-1.5">
-          {onSolve && (
-            <motion.button
-              onClick={(e) => {
-                e.stopPropagation();
-                onSolve(problem.id);
-              }}
+          {(problem.leetcode_url || problem.source_url) && (
+            <motion.a
+              href={problem.leetcode_url || problem.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               whileTap={{ scale: 0.9 }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-150"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer"
               style={{
-                background: 'linear-gradient(135deg, rgba(99,102,241,0.25) 0%, rgba(168,85,247,0.25) 100%)',
+                background: 'linear-gradient(135deg, rgba(99,102,241,0.2) 0%, rgba(168,85,247,0.2) 100%)',
                 color: '#c084fc',
-                border: '1px solid rgba(168,85,247,0.35)',
+                border: '1px solid rgba(168,85,247,0.3)',
               }}
-              title="Solve in Online Judge"
+              title="Practice on LeetCode"
             >
-              <Code2 style={{ width: 13, height: 13 }} />
-              <span>Solve</span>
-            </motion.button>
+              <ExternalLink style={{ width: 12, height: 12 }} />
+              <span>LeetCode</span>
+            </motion.a>
           )}
 
           {/* Solve button with pop animation */}

@@ -169,17 +169,6 @@ export const exportApi = {
   }),
 };
 
-export const judgeApi = {
-  runCode: (data) => api.post('/run-code/', data),
-  submitCode: (data) => api.post('/submit/', data),
-  getLanguages: () => api.get('/languages/'),
-  getTemplate: (problemId, language) => api.get(`/problems/${problemId}/language-template/`, { params: { language } }),
-  getTestCases: (problemId) => api.get(`/problems/${problemId}/test-cases/`),
-  getSubmissions: (problemId) => api.get(`/problems/${problemId}/submissions/`),
-  getSubmissionDetail: (id) => api.get(`/submissions/${id}/`),
-  getSubmissionStatus: (id) => api.get(`/submissions/${id}/status/`),
-};
-
 export const challengesApi = {
   getChallenges: () => api.get('/challenges/'),
   createChallenge: (data) => api.post('/challenges/', data),

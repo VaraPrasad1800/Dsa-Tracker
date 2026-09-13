@@ -35,7 +35,7 @@ const SORT_OPTIONS = [
   { value: 'created', label: 'Recently Added' },
 ];
 
-export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, onSolve }) {
+export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, initialProblemId }) {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -53,6 +53,15 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
   const [page, setPage] = useState(1);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState(null);
+
+  // Sync external initial problem (e.g. from Review or Challenges)
+  React.useEffect(() => {
+    if (initialProblemId) {
+      problemsApi.getProblem(initialProblemId)
+        .then((res) => setSelectedProblem(res.data))
+        .catch(() => {});
+    }
+  }, [initialProblemId]);
 
   // Sync external topic filter
   React.useEffect(() => {
@@ -403,7 +412,6 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
               onPageChange={(newPage) => setPage(newPage)}
               onSelectProblem={(prob) => setSelectedProblem(prob)}
               onQuickUpdateStatus={handleQuickUpdateStatus}
-              onSolve={onSolve}
               loading={loadingProblems}
             />
           ) : loadingProblems ? (
@@ -433,7 +441,6 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
                     problem={prob}
                     onSelect={(p) => setSelectedProblem(p)}
                     onQuickUpdateStatus={handleQuickUpdateStatus}
-                    onSolve={onSolve}
                   />
                 ))}
               </div>
@@ -480,7 +487,6 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
           problem={selectedProblem}
           onClose={() => setSelectedProblem(null)}
           onSaveProgress={(data) => updateProgressMutation.mutate(data)}
-          onSolve={onSolve}
         />
       )}
     </div>

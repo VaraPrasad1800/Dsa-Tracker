@@ -55,29 +55,6 @@ class Problem(models.Model):
     source_url = models.URLField(max_length=500, blank=True, default='')
     source_platform = models.CharField(max_length=50, default='LeetCode')
     time_limit_minutes = models.IntegerField(null=True, blank=True)
-    time_limit_ms = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        validators=[
-            MinValueValidator(100),
-            MaxValueValidator(15000),
-        ],
-        help_text="Execution time limit in milliseconds per test case. Fallback to difficulty-aware platform default if unset."
-    )
-    time_limit_seconds = models.FloatField(
-        null=True,
-        blank=True,
-        help_text="Execution time limit in seconds per test case. Sourced from Problem model."
-    )
-    memory_limit_mb = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-        validators=[
-            MinValueValidator(16),
-            MaxValueValidator(1024),
-        ],
-        help_text="Execution memory limit in megabytes per test case. Fallback to platform default if unset."
-    )
     question_number = models.PositiveIntegerField(
         unique=True,
         null=True,
@@ -88,106 +65,6 @@ class Problem(models.Model):
     leetcode_id = models.IntegerField(null=True, blank=True, help_text='LeetCode problem ID number')
     is_premium = models.BooleanField(default=False, help_text='True if LeetCode Premium-only problem')
     frequency = models.IntegerField(default=0, db_index=True, help_text='How often this problem appears in interviews (0-100)')
-    EXECUTION_MODE_CHOICES = [
-        ('FUNCTION', 'Function-based'),
-        ('STDIN_STDOUT', 'Standard I/O'),
-    ]
-    execution_mode = models.CharField(
-        max_length=20,
-        choices=EXECUTION_MODE_CHOICES,
-        default='STDIN_STDOUT',
-        db_index=True,
-        help_text='Whether this problem evaluates a function signature or reads from stdin/stdout'
-    )
-    JUDGING_MODE_CHOICES = [
-        ('stdio', 'Standard I/O'),
-        ('function', 'Function-based'),
-    ]
-    judging_mode = models.CharField(
-        max_length=20,
-        choices=JUDGING_MODE_CHOICES,
-        default='stdio',
-        db_index=True,
-        help_text='Judging mode: stdio or function'
-    )
-    input_format = models.TextField(blank=True, default='', help_text='Specification of the input format via stdin')
-    output_format = models.TextField(blank=True, default='', help_text='Specification of the output format via stdout')
-    function_name = models.CharField(max_length=100, blank=True, default='', help_text='Target function/method name for function-based problems')
-    class_name = models.CharField(max_length=100, default='Solution', blank=True, help_text='Class name enclosing the solution method')
-    parameters_meta = models.JSONField(default=list, blank=True, help_text='List of parameter definitions [{name: "nums", type: "list[int]"}]')
-    parameter_schema = models.JSONField(default=list, blank=True, help_text='Schema definition for function-mode judging')
-    has_multiple_valid_outputs = models.BooleanField(default=False, db_index=True, help_text='True if problem allows multiple valid outputs')
-    return_type = models.CharField(max_length=100, default='', blank=True, help_text='Return type annotation for the method')
-
-    READINESS_CHOICES = [
-        ('JUDGE_READY', 'Judge Ready'),
-        ('CONFIGURATION_REQUIRED', 'Configuration Required'),
-    ]
-    is_judge_ready = models.BooleanField(default=False, db_index=True, help_text='True if problem satisfies complete execution contract')
-    judge_readiness_status = models.CharField(
-        max_length=50,
-        choices=READINESS_CHOICES,
-        default='CONFIGURATION_REQUIRED',
-        db_index=True,
-        help_text='Canonical judge readiness status'
-    )
-
-    # ---------------------------------------------------------------------------
-    # Preparation pipeline status — used by prepare_judge_data management command.
-    # Persisted to DB so the pipeline is safely resumable after any interruption.
-    # ---------------------------------------------------------------------------
-    PREPARATION_STATUS_CHOICES = [
-        ('PENDING', 'Pending — not yet processed'),
-        ('FETCHING', 'Fetching — network request in progress (or interrupted)'),
-        ('NORMALIZING', 'Normalizing — data processing in progress (or interrupted)'),
-        ('JUDGE_READY', 'Judge Ready — fully prepared'),
-        ('CONFIGURATION_REQUIRED', 'Configuration Required — missing data, not fetchable'),
-        ('FAILED', 'Failed — fetch/prepare error, eligible for retry'),
-    ]
-    preparation_status = models.CharField(
-        max_length=30,
-        choices=PREPARATION_STATUS_CHOICES,
-        default='PENDING',
-        db_index=True,
-        help_text='Persistent stage of the judge-data preparation pipeline for this problem'
-    )
-    preparation_error = models.TextField(
-        blank=True,
-        default='',
-        help_text='Last error message from the preparation pipeline, if any'
-    )
-    preparation_attempts = models.PositiveSmallIntegerField(
-        default=0,
-        help_text='Number of times preparation has been attempted'
-    )
-    preparation_last_attempted = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text='Timestamp of the last preparation attempt'
-    )
-    OUTPUT_CHECKER_CHOICES = [
-        ('EXACT', 'Exact match (character-for-character)'),
-        ('NORMALIZED', 'Normalized text (whitespace-insensitive)'),
-        ('NORMALIZED_TEXT', 'Normalized text (whitespace-insensitive)'),
-        ('ALTERNATIVES', 'Multiple Valid Alternatives (pipe-separated)'),
-        ('JSON', 'JSON Equality'),
-        ('BOOLEAN', 'Boolean (true/false, case-insensitive)'),
-        ('INTEGER', 'Integer (numeric equality)'),
-        ('FLOAT_WITH_TOLERANCE', 'Float with 1e-5 tolerance'),
-        ('ARRAY', 'Ordered Array (space-separated elements)'),
-        ('ORDER_INSENSITIVE_ARRAY', 'Order-Insensitive Array (multiset equality)'),
-    ]
-    output_checker = models.CharField(
-        max_length=50,
-        choices=OUTPUT_CHECKER_CHOICES,
-        default='NORMALIZED',
-        help_text='Output validator mode for judging solutions'
-    )
-    missing_configuration = models.JSONField(
-        default=list,
-        blank=True,
-        help_text='List of missing prerequisites when judge readiness is CONFIGURATION_REQUIRED'
-    )
     examples = models.JSONField(default=list, blank=True, help_text='Structured list of problem examples [{input, output, explanation}]')
     constraints = models.JSONField(default=list, blank=True, help_text='Structured list of constraints')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -444,7 +321,7 @@ class StudyPlanDay(models.Model):
 
 
 # ============================================================================
-# V2 MODELS — Online Judge, Challenges, Achievements, Interview, Activity
+# V2 MODELS — Challenges, Achievements, Interview, Activity
 # ============================================================================
 
 class DSAPattern(models.Model):
@@ -466,103 +343,7 @@ class DSAPattern(models.Model):
         ordering = ['name']
 
 
-class TestCase(models.Model):
-    """A single test case for a problem (visible or hidden)."""
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='test_cases')
-    is_sample = models.BooleanField(
-        default=True,
-        db_index=True,
-        help_text='True if visible sample test case available for Run Code.'
-    )
-    is_hidden = models.BooleanField(
-        default=False,
-        help_text='Hidden test cases are NEVER returned to the frontend. '
-                  'Only verdict + pass/fail count is returned.'
-    )
 
-    input_text = models.TextField(blank=True, default='')
-    expected_output = models.TextField(blank=True, default='')
-    order = models.IntegerField(default=0)
-    time_limit_seconds = models.FloatField(null=True, blank=True)
-    memory_limit_mb = models.IntegerField(null=True, blank=True)
-
-    class Meta:
-        ordering = ['problem', 'is_hidden', 'order']
-
-    def __str__(self):
-        kind = 'Hidden' if self.is_hidden else 'Visible'
-        return f'{kind} TestCase #{self.order} for {self.problem.title}'
-
-
-class LanguageTemplate(models.Model):
-    """Starter code template for a specific language on a specific problem."""
-    LANGUAGE_CHOICES = [
-        ('python', 'Python'),
-        ('c', 'C'),
-        ('cpp', 'C++'),
-        ('java', 'Java'),
-    ]
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='language_templates')
-    language = models.CharField(max_length=20, choices=LANGUAGE_CHOICES)
-    starter_code = models.TextField(blank=True, default='')
-    harness_code = models.TextField(blank=True, default='', help_text='Driver code appended during execution for function-based problems')
-
-    class Meta:
-        unique_together = ('problem', 'language')
-
-    def __str__(self):
-        return f'{self.problem.title} — {self.language} template'
-
-
-class Submission(models.Model):
-    """A code submission by a user for a problem."""
-    VERDICT_CHOICES = [
-        ('PENDING', 'Pending'),
-        ('ACCEPTED', 'Accepted'),
-        ('WRONG_ANSWER', 'Wrong Answer'),
-        ('COMPILE_ERROR', 'Compilation Error'),
-        ('RUNTIME_ERROR', 'Runtime Error'),
-        ('TLE', 'Time Limit Exceeded'),
-        ('MLE', 'Memory Limit Exceeded'),
-        ('EXECUTION_ERROR', 'Execution Error'),
-        ('SYSTEM_ERROR', 'Internal Error'),
-    ]
-    LANGUAGE_CHOICES = [
-        ('python', 'Python'),
-        ('c', 'C'),
-        ('cpp', 'C++'),
-        ('java', 'Java'),
-    ]
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submissions')
-    problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='submissions')
-    language = models.CharField(max_length=20, choices=LANGUAGE_CHOICES)
-    source_code = models.TextField()
-    verdict = models.CharField(max_length=20, choices=VERDICT_CHOICES, default='PENDING')
-    tests_passed = models.IntegerField(default=0)
-    tests_total = models.IntegerField(default=0)
-    execution_time_ms = models.IntegerField(default=0)
-    memory_kb = models.IntegerField(default=0)
-    compile_error = models.TextField(blank=True, default='')
-    error_message = models.TextField(blank=True, default='')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['user', 'problem']),
-            models.Index(fields=['user', '-created_at']),
-        ]
-
-    def __str__(self):
-        return f'{self.user.username} — {self.problem.title} [{self.verdict}]'
-
-    @property
-    def is_accepted(self):
-        return self.verdict == 'ACCEPTED'
 
 
 class Challenge(models.Model):
@@ -762,9 +543,6 @@ class InterviewProblem(models.Model):
     problem = models.ForeignKey(Problem, on_delete=models.CASCADE)
     solved = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
-    submission = models.ForeignKey(
-        Submission, null=True, blank=True, on_delete=models.SET_NULL,
-    )
 
     class Meta:
         unique_together = ('session', 'problem')

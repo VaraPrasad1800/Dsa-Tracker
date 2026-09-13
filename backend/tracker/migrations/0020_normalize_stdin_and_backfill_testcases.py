@@ -33,8 +33,12 @@ def forward_normalize_and_backfill(apps, schema_editor):
         if changed:
             p.save(update_fields=['parameter_schema', 'time_limit_seconds'])
 
-    # 3. Normalize all TestCase stdin input_text and expected_output
-    from tracker.judge.canonical_serialization import normalize_stdin_text, normalize_expected_output_text
+    # 3. Normalize all TestCase stdin input_text and expected_output (if judge package available)
+    try:
+        from tracker.judge.canonical_serialization import normalize_stdin_text, normalize_expected_output_text
+    except ImportError:
+        def normalize_stdin_text(t): return t
+        def normalize_expected_output_text(t): return t
 
     for tc in TestCase.objects.iterator(chunk_size=500):
         orig_in = tc.input_text or ""

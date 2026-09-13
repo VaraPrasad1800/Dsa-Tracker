@@ -52,13 +52,7 @@ POINTS_INTERVIEW_PERFECT = 75          # Bonus for solving all problems in a ses
 # ---------------------------------------------------------------------------
 POINTS_ACHIEVEMENT_UNLOCK = 15
 
-# ---------------------------------------------------------------------------
-# Judge limits (shared defaults — per-problem overrides stored on TestCase)
-# ---------------------------------------------------------------------------
-JUDGE_DEFAULT_TIME_LIMIT_SECONDS = 5
-JUDGE_DEFAULT_MEMORY_LIMIT_MB = 128
-JUDGE_MAX_SOURCE_SIZE_BYTES = 64 * 1024      # 64 KB
-JUDGE_MAX_STDIN_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+
 
 # ---------------------------------------------------------------------------
 # Topic mastery thresholds (deterministic — no AI)

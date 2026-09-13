@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Download,
   Tag,
-  Terminal,
   Trophy,
   Video,
   Award,
@@ -29,7 +28,6 @@ import NotificationCenter from './common/NotificationCenter';
 
 const NAV_ITEMS = [
   { id: 'problems',    label: 'Problem Bank',   icon: Code2,         shortcut: 'P' },
-  { id: 'judge',       label: 'Online Judge',   icon: Terminal,      shortcut: 'J' },
   { id: 'challenges',  label: 'Challenges',     icon: Trophy,        shortcut: 'H' },
   { id: 'interview',   label: 'Interview Mode', icon: Video,         shortcut: 'I' },
   { id: 'companies',   label: 'Companies',      icon: Building2,     shortcut: 'C' },

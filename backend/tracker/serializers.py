@@ -2,8 +2,8 @@ from rest_framework import serializers
 from tracker.models import (
     Tag, Company, Problem, UserProblemProgress, ReviewHistory,
     DailyStat, UserStreak, StudyPlan, StudyPlanDay, UserProfile, Solution,
-    Submission, Challenge, ChallengeProblem, Achievement, UserAchievement,
-    Notification, InterviewSession, InterviewProblem, DSAPattern, TestCase,
+    Challenge, ChallengeProblem, Achievement, UserAchievement,
+    Notification, InterviewSession, InterviewProblem, DSAPattern,
     UserPoints,
 )
 from tracker.utils.problem_formatter import clean_broken_newlines, parse_structured_statement
@@ -28,11 +28,16 @@ class TagSerializer(serializers.ModelSerializer):
         user = get_serializer_user(request)
         result = {'solved': 0}
         if user:
-            solved = UserProblemProgress.objects.filter(
+            from tracker.models import UserProblemProgress
+            result['solved'] = UserProblemProgress.objects.filter(
                 user=user, problem__tags=obj, status='SOLVED'
             ).count()
-            result['solved'] = solved
         return result
+
+class TagSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = ['id', 'name', 'slug', 'color', 'category']
 
 class CompanySerializer(serializers.ModelSerializer):
     problem_count = serializers.IntegerField(read_only=True, default=0)
@@ -47,11 +52,16 @@ class CompanySerializer(serializers.ModelSerializer):
         user = get_serializer_user(request)
         result = {'solved': 0}
         if user:
-            solved = UserProblemProgress.objects.filter(
+            from tracker.models import UserProblemProgress
+            result['solved'] = UserProblemProgress.objects.filter(
                 user=user, problem__companies=obj, status='SOLVED'
             ).count()
-            result['solved'] = solved
         return result
+
+class CompanySimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Company
+        fields = ['id', 'name', 'slug']
 
 class UserProblemProgressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,16 +73,6 @@ class UserProblemProgressSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
-
-class TagSimpleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = ['id', 'name', 'slug', 'color', 'category']
-
-class CompanySimpleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Company
-        fields = ['id', 'name', 'slug']
 
 class ProblemSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
@@ -87,12 +87,9 @@ class ProblemSerializer(serializers.ModelSerializer):
         model = Problem
         fields = [
             'id', 'question_number', 'title', 'slug', 'difficulty', 'description',
-            'execution_mode', 'input_format', 'output_format',
-            'function_name', 'class_name', 'parameters_meta', 'return_type',
-            'is_judge_ready', 'judge_readiness_status', 'output_checker', 'missing_configuration',
             'examples', 'constraints',
             'tags', 'companies', 'source_url', 'source_platform',
-            'time_limit_minutes', 'time_limit_ms', 'memory_limit_mb', 'leetcode_id', 'is_premium', 'frequency',
+            'time_limit_minutes', 'leetcode_id', 'is_premium', 'frequency',
             'leetcode_url', 'solution_api_url', 'has_solution',
             'created_at', 'updated_at', 'user_progress', 'is_bookmarked'
         ]
@@ -171,9 +168,8 @@ class ProblemListSerializer(serializers.ModelSerializer):
         model = Problem
         fields = [
             'id', 'question_number', 'title', 'slug', 'difficulty',
-            'is_judge_ready', 'judge_readiness_status',
             'tags', 'companies', 'source_url', 'source_platform',
-            'time_limit_minutes', 'time_limit_ms', 'memory_limit_mb', 'leetcode_id', 'is_premium', 'frequency',
+            'time_limit_minutes', 'leetcode_id', 'is_premium', 'frequency',
             'leetcode_url', 'solution_api_url',
             'created_at', 'updated_at', 'user_progress', 'is_bookmarked'
         ]
@@ -284,40 +280,7 @@ class SolutionSerializer(serializers.ModelSerializer):
 # V2 Serializers
 # ============================================================================
 
-class SubmissionSerializer(serializers.ModelSerializer):
-    """Safe submission serializer — never exposes hidden test I/O."""
-    problem_title = serializers.SerializerMethodField()
-    question_number = serializers.IntegerField(source='problem.question_number', read_only=True)
 
-    class Meta:
-        model = Submission
-        fields = [
-            'id', 'problem', 'question_number', 'problem_title', 'language', 'verdict',
-            'tests_passed', 'tests_total', 'execution_time_ms', 'memory_kb',
-            'created_at',
-        ]
-        read_only_fields = fields
-
-    def get_problem_title(self, obj):
-        return obj.problem.title
-
-
-class SubmissionDetailSerializer(serializers.ModelSerializer):
-    """Full submission detail for the submission owner."""
-    problem_title = serializers.SerializerMethodField()
-    question_number = serializers.IntegerField(source='problem.question_number', read_only=True)
-
-    class Meta:
-        model = Submission
-        fields = [
-            'id', 'problem', 'question_number', 'problem_title', 'language', 'source_code',
-            'verdict', 'tests_passed', 'tests_total', 'execution_time_ms',
-            'memory_kb', 'compile_error', 'error_message', 'created_at',
-        ]
-        read_only_fields = fields
-
-    def get_problem_title(self, obj):
-        return obj.problem.title
 
 
 class ChallengeProblemSerializer(serializers.ModelSerializer):
@@ -405,27 +368,7 @@ class InterviewProblemSerializer(serializers.ModelSerializer):
         return obj.problem.difficulty
 
     def get_solved(self, obj):
-        if obj.solved:
-            return True
-        if hasattr(obj, 'session') and obj.session:
-            from tracker.models import Submission
-            qs = Submission.objects.filter(
-                user=obj.session.user,
-                problem=obj.problem,
-                verdict='ACCEPTED',
-                created_at__gte=obj.session.started_at,
-            )
-            if obj.session.ended_at:
-                qs = qs.filter(created_at__lte=obj.session.ended_at)
-            accepted_sub = qs.order_by('-created_at').first()
-            if accepted_sub:
-                obj.solved = True
-                obj.submission = accepted_sub
-                if obj.attempts == 0:
-                    obj.attempts = 1
-                obj.save(update_fields=['solved', 'submission', 'attempts'])
-                return True
-        return False
+        return bool(obj.solved)
 
 
 class InterviewSessionSerializer(serializers.ModelSerializer):
@@ -463,13 +406,6 @@ class DSAPatternSerializer(serializers.ModelSerializer):
 
     def get_problem_count(self, obj):
         return obj.problems.count()
-
-
-class TestCaseSerializer(serializers.ModelSerializer):
-    """Safe serializer — only for VISIBLE test cases (no hidden test I/O)."""
-    class Meta:
-        model = TestCase
-        fields = ['id', 'input_text', 'expected_output', 'order']
 
 
 class UserPointsSerializer(serializers.ModelSerializer):

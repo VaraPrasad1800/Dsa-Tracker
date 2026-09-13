@@ -1,6 +1,6 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from tracker.models import Problem, Submission, Challenge
+from tracker.models import Problem, UserProblemProgress, Challenge
 from tracker.services.challenge_service import create_challenge, check_challenge_progress, finalize_challenge
 
 User = get_user_model()
@@ -19,18 +19,16 @@ class ChallengeSystemTests(TestCase):
         })
         self.assertEqual(challenge.status, 'ACTIVE')
 
-        # No submissions yet
+        # No solved problems yet
         prog = check_challenge_progress(self.user, str(challenge.id))
         self.assertFalse(prog['is_complete'])
         self.assertEqual(prog['completed_count'], 0)
 
-        # Submit accepted
-        Submission.objects.create(
+        # Mark solved
+        UserProblemProgress.objects.create(
             user=self.user,
             problem=self.problem,
-            language='python',
-            source_code='pass',
-            verdict='ACCEPTED'
+            status='SOLVED',
         )
 
         prog2 = check_challenge_progress(self.user, str(challenge.id))

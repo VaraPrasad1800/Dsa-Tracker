@@ -300,16 +300,19 @@ export default function ProblemsTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1.5">
-                        {onSolve && (
-                          <motion.button
+                        {(prob.leetcode_url || prob.source_url) && (
+                          <motion.a
                             whileTap={{ scale: 0.88 }}
-                            onClick={() => onSolve(prob.id)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all"
-                            title="Solve in Online Judge"
+                            href={prob.leetcode_url || prob.source_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all cursor-pointer"
+                            title="Practice on LeetCode"
                           >
-                            <Code2 className="h-3.5 w-3.5" />
-                            <span>Solve</span>
-                          </motion.button>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            <span>LeetCode</span>
+                          </motion.a>
                         )}
                         <motion.button
                           whileTap={{ scale: 0.88 }}

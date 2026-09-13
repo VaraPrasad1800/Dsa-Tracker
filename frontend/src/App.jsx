@@ -19,7 +19,6 @@ import TodaysReviewPage from './pages/TodaysReviewPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import StudyPlanPage from './pages/StudyPlanPage';
 import SolutionPage from './pages/SolutionPage';
-import JudgePage from './pages/JudgePage';
 import ChallengesPage from './pages/ChallengesPage';
 import InterviewModePage from './pages/InterviewModePage';
 import AchievementsPage from './pages/AchievementsPage';
@@ -88,7 +87,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('problems');
   const [activeTopicFilter, setActiveTopicFilter] = useState('');
   const [selectedCompany, setSelectedCompany] = useState(null);
-  const [activeJudgeProblemId, setActiveJudgeProblemId] = useState(null);
+  const [targetProblemId, setTargetProblemId] = useState(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(220);
 
@@ -127,12 +126,13 @@ function AppContent() {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab !== 'companies') setSelectedCompany(null);
+    if (tab !== 'problems') setTargetProblemId(null);
   };
 
   const handleSolveProblem = (prob) => {
     const pId = typeof prob === 'object' ? prob.id : prob;
-    setActiveJudgeProblemId(pId);
-    setActiveTab('judge');
+    setTargetProblemId(pId);
+    setActiveTab('problems');
   };
 
   return (
@@ -164,14 +164,8 @@ function AppContent() {
                 <ProblemsPage
                   activeTopicFilter={activeTopicFilter}
                   onSelectTopicFilter={setActiveTopicFilter}
-                  onSolve={handleSolveProblem}
+                  initialProblemId={targetProblemId}
                 />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'judge' && (
-              <PageWrapper key={activeJudgeProblemId ? `judge-${activeJudgeProblemId}` : 'judge'}>
-                <JudgePage initialProblemId={activeJudgeProblemId} />
               </PageWrapper>
             )}
 

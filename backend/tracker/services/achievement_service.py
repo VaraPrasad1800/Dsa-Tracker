@@ -24,7 +24,7 @@ from django.contrib.auth import get_user_model
 
 from tracker.models import (
     Achievement, UserAchievement, UserProblemProgress,
-    UserStreak, Submission, Challenge, ActivityEvent,
+    UserStreak, Challenge, ActivityEvent,
 )
 
 User = get_user_model()
@@ -82,8 +82,8 @@ ACHIEVEMENT_SEED = [
         'points': 200, 'required_challenge_count': 5, 'sort_order': 31,
     },
     {
-        'code': 'HUNDRED_ACCEPTED', 'name': '100 Accepted Submissions', 'icon': '✅',
-        'description': 'Reached 100 accepted submissions.',
+        'code': 'HUNDRED_ACCEPTED', 'name': '100 Problems Solved', 'icon': '✅',
+        'description': 'Solved 100 problems.',
         'points': 300, 'required_accepted_count': 100, 'sort_order': 40,
     },
     {
@@ -136,7 +136,7 @@ def _count_completed_challenges(user) -> int:
 
 
 def _count_accepted_submissions(user) -> int:
-    return Submission.objects.filter(user=user, verdict='ACCEPTED').count()
+    return UserProblemProgress.objects.filter(user=user, status='SOLVED').count()
 
 
 def _is_condition_met(achievement: Achievement, user) -> bool:

@@ -20,16 +20,15 @@ logger = logging.getLogger(__name__)
 from tracker.models import (
     Tag, Company, Problem, UserProblemProgress, ReviewHistory,
     DailyStat, UserStreak, StudyPlan, StudyPlanDay, UserProfile, Solution,
-    Submission, Challenge, Achievement, Notification, InterviewSession,
-    InterviewProblem, DSAPattern, TestCase, UserPoints, RefreshToken,
+    Challenge, Achievement, Notification, InterviewSession,
+    InterviewProblem, DSAPattern, UserPoints, RefreshToken,
 )
 from tracker.serializers import (
     TagSerializer, CompanySerializer, ProblemSerializer, ProblemListSerializer,
     UserProblemProgressSerializer, ReviewHistorySerializer,
     StudyPlanSerializer, BookmarkedProblemSerializer, SolutionSerializer,
-    SubmissionSerializer, SubmissionDetailSerializer,
     ChallengeSerializer, AchievementSerializer, NotificationSerializer,
-    InterviewSessionSerializer, DSAPatternSerializer, TestCaseSerializer,
+    InterviewSessionSerializer, DSAPatternSerializer,
     UserPointsSerializer,
 )
 from tracker.scraper import fetch_solution
@@ -61,7 +60,6 @@ from tracker.services.auth_tokens import (
     get_verification_expiry_hours,
     get_password_reset_expiry_hours,
 )
-from tracker.throttles import JudgeRunThrottle, JudgeSubmitThrottle
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 User = get_user_model()
@@ -273,7 +271,7 @@ class ProblemDetailView(APIView):
 
     @extend_schema(
         summary="Get problem details",
-        description="Detailed problem statement, constraints, examples, and judge configuration.",
+        description="Detailed problem statement, constraints, and examples.",
         responses={200: ProblemSerializer},
     )
     def get(self, request, pk):
@@ -281,13 +279,6 @@ class ProblemDetailView(APIView):
             problem = Problem.objects.prefetch_related('tags', 'companies').get(pk=pk)
         except Problem.DoesNotExist:
             return Response({'error': 'Problem not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        if not problem.is_judge_ready and problem.leetcode_id:
-            from tracker.services.problem_hydration_service import hydrate_problem_contract
-            try:
-                problem, _, _ = hydrate_problem_contract(problem)
-            except Exception:
-                pass
 
         serializer = ProblemSerializer(problem, context={'request': request})
         return Response(serializer.data)
@@ -1608,227 +1599,7 @@ class AnalyticsDashboardView(APIView):
         return Response(dashboard)
 
 
-# ============================================================================
-# V2 VIEWS — Online Judge
-# ============================================================================
 
-class RunCodeView(APIView):
-    """
-    POST /api/run-code/
-    Execute code with custom stdin. Does NOT alter any progress or save a Submission.
-    Body: { language, source_code, stdin, problem_id (optional) }
-    """
-    permission_classes = [IsAuthenticated]
-    throttle_classes = [JudgeRunThrottle]
-
-    @extend_schema(
-        summary="Run code in sandbox",
-        description="Executes user-provided code against custom stdin without recording a submission.",
-        responses={200: OpenApiResponse(description="Execution result with output and performance metrics")},
-    )
-    def post(self, request):
-        from tracker.services.judge_service import run_code_for_user
-
-        # Load check: if system has too many pending judge submissions, return 503
-        pending_count = Submission.objects.filter(verdict='PENDING').count()
-        if pending_count > 30:
-            return Response(
-                {'error': 'System is experiencing high judge load. Please try again shortly.'},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-
-        language = request.data.get('language', '').strip().lower()
-        source_code = request.data.get('source_code', '')
-        stdin = request.data.get('stdin', '')
-        problem_id = request.data.get('problem_id', '')
-
-        if not language:
-            return Response({'error': 'language is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not source_code.strip():
-            return Response({'error': 'source_code is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        result = run_code_for_user(request.user, problem_id, language, source_code, stdin)
-        return Response(result)
-
-
-class SubmitCodeView(APIView):
-    """
-    POST /api/submit/
-    Submit code asynchronously for judging against all test cases (visible + hidden).
-    Body: { language, source_code, problem_id }
-    Returns 202 Accepted: { "submission_id": ..., "status": "PENDING", "verdict": "PENDING" }
-    """
-    permission_classes = [IsAuthenticated]
-    throttle_classes = [JudgeSubmitThrottle]
-
-    @extend_schema(
-        summary="Submit solution for judging",
-        description="Creates a pending submission and dispatches evaluation to background Celery queue. Returns 202 Accepted.",
-        responses={202: OpenApiResponse(description="Pending submission created")},
-    )
-    def post(self, request):
-        from tracker.services.judge_service import create_pending_submission
-        from tracker.tasks import run_submission_task
-
-        language = request.data.get('language', '').strip().lower()
-        source_code = request.data.get('source_code', '')
-        problem_id = request.data.get('problem_id', '')
-
-        if not language:
-            return Response({'error': 'language is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not source_code.strip():
-            return Response({'error': 'source_code is required'}, status=status.HTTP_400_BAD_REQUEST)
-        if not problem_id:
-            return Response({'error': 'problem_id is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Check for same-problem pending submission cooldown (prevents spamming queue)
-        pending_sub = Submission.objects.filter(
-            user=request.user, problem_id=problem_id, verdict='PENDING'
-        ).first()
-        if pending_sub:
-            return Response({
-                'error': 'You already have a pending submission for this problem. Please wait for it to complete.',
-                'submission_id': str(pending_sub.id),
-                'status': 'PENDING',
-                'verdict': 'PENDING',
-            }, status=status.HTTP_409_CONFLICT)
-
-        try:
-            submission = create_pending_submission(request.user, problem_id, language, source_code)
-        except ValueError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Problem.DoesNotExist:
-            return Response({'error': 'Problem not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Dispatch async task (Celery when broker is reachable; background thread fallback otherwise)
-        dispatched = False
-        try:
-            from tracker.services.judge_service import is_celery_broker_reachable
-            if is_celery_broker_reachable():
-                run_submission_task.delay(str(submission.id))
-                dispatched = True
-        except Exception as exc:
-            import logging
-            logger = logging.getLogger('tracker')
-            logger.warning("Celery dispatch failed (%s); evaluating via background thread.", exc)
-
-        if not dispatched:
-            import threading
-            from tracker.services.judge_service import execute_submission
-            threading.Thread(target=execute_submission, args=(str(submission.id),), daemon=True).start()
-
-        return Response({
-            'submission_id': str(submission.id),
-            'status': 'PENDING',
-            'verdict': 'PENDING',
-            'tests_passed': 0,
-            'tests_total': 0,
-            'execution_time_ms': 0,
-            'memory_kb': 0,
-        }, status=status.HTTP_202_ACCEPTED)
-
-
-class SubmissionStatusView(APIView):
-    """
-    GET /api/submissions/<uuid:pk>/status/
-    Lightweight endpoint for polling submission evaluation status.
-    Returns: { "submission_id": ..., "verdict": ..., "tests_passed": ..., "tests_total": ... }
-    """
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Check submission evaluation status",
-        description="Lightweight polling endpoint to retrieve current evaluation state and test metrics.",
-        responses={200: OpenApiResponse(description="Submission evaluation verdict and progress")},
-    )
-    def get(self, request, pk):
-        try:
-            s = Submission.objects.get(id=pk, user=request.user)
-        except (Submission.DoesNotExist, ValueError):
-            return Response({'error': 'Submission not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({
-            'submission_id': str(s.id),
-            'verdict': s.verdict,
-            'tests_passed': s.tests_passed,
-            'tests_total': s.tests_total,
-        })
-
-
-class ProblemSubmissionsView(APIView):
-    """GET /api/problems/<uuid>/submissions/ — user's own submissions for a problem."""
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="List user problem submissions",
-        description="Returns submission history for a specific problem for the authenticated user.",
-        responses={200: SubmissionSerializer(many=True)},
-    )
-    def get(self, request, pk):
-        from tracker.services.judge_service import get_submission_history
-        history = get_submission_history(request.user, str(pk))
-        return Response({'submissions': history})
-
-
-class SubmissionDetailView(APIView):
-    """GET /api/submissions/<uuid>/ — full detail for a single submission (own only)."""
-    permission_classes = [IsAuthenticated]
-
-    @extend_schema(
-        summary="Get submission details",
-        description="Returns full diagnostic and per-test execution details for a submission.",
-        responses={200: SubmissionDetailSerializer},
-    )
-    def get(self, request, pk):
-        from tracker.services.judge_service import get_submission_detail
-        detail = get_submission_detail(request.user, str(pk))
-        if detail is None:
-            return Response({'error': 'Submission not found.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response(detail)
-
-
-class LanguagesView(APIView):
-    """GET /api/languages/ — list supported languages and default starter code."""
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        from tracker.services.judge_service import get_supported_languages
-        return Response({'languages': get_supported_languages()})
-
-
-class LanguageTemplateView(APIView):
-    """GET /api/problems/<uuid>/language-template/?language=python — starter code."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, pk):
-        from tracker.services.judge_service import get_language_template
-        from tracker.services.problem_hydration_service import hydrate_problem_contract
-        try:
-            problem = Problem.objects.get(pk=pk)
-            if not problem.is_judge_ready and problem.leetcode_id:
-                hydrate_problem_contract(problem)
-        except Exception:
-            pass
-        language = request.query_params.get('language', 'python').strip().lower()
-        starter = get_language_template(str(pk), language)
-        return Response({'language': language, 'starter_code': starter})
-
-
-class ProblemTestCasesView(APIView):
-    """GET /api/problems/<uuid>/test-cases/ — VISIBLE test cases only (never hidden)."""
-    permission_classes = [AllowAny]
-
-    def get(self, request, pk):
-        from tracker.services.problem_hydration_service import hydrate_problem_contract
-        try:
-            problem = Problem.objects.get(pk=pk)
-            if not problem.is_judge_ready and problem.leetcode_id:
-                hydrate_problem_contract(problem)
-        except Exception:
-            pass
-        test_cases = TestCase.objects.filter(problem_id=pk, is_sample=True, is_hidden=False).order_by('order')
-        serializer = TestCaseSerializer(test_cases, many=True)
-        return Response({'test_cases': serializer.data})
 
 
 
@@ -2067,19 +1838,17 @@ class InterviewSessionEndView(APIView):
         session.status = 'COMPLETED'
 
         # Ensure any problems canonically solved during the session timeframe are marked solved
-        from tracker.models import Submission
         for ip in session.interview_problems.filter(solved=False):
-            accepted_sub = Submission.objects.filter(
+            progress_solved = UserProblemProgress.objects.filter(
                 user=request.user,
                 problem=ip.problem,
-                verdict='ACCEPTED',
-                created_at__gte=session.started_at,
-                created_at__lte=now,
-            ).order_by('-created_at').first()
-            if accepted_sub:
+                status='SOLVED',
+                updated_at__gte=session.started_at,
+                updated_at__lte=now,
+            ).exists()
+            if progress_solved:
                 ip.solved = True
-                ip.submission = accepted_sub
-                ip.save(update_fields=['solved', 'submission'])
+                ip.save(update_fields=['solved'])
 
         # Tally solved problems
         solved = InterviewProblem.objects.filter(session=session, solved=True).count()
@@ -2144,43 +1913,21 @@ def _get_interview_follow_up(user, session) -> list[str]:
 class InterviewProblemSolveView(APIView):
     """
     POST /api/interview-sessions/<session_uuid>/problems/<problem_uuid>/solve/
-    Mark a problem as solved within a session (called after Accepted submission).
+    Mark a problem as solved within a session.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, session_pk, problem_pk):
-        from tracker.models import Submission
         try:
             session = InterviewSession.objects.get(id=session_pk, user=request.user, status='ACTIVE')
             ip = InterviewProblem.objects.get(session=session, problem_id=problem_pk)
         except (InterviewSession.DoesNotExist, InterviewProblem.DoesNotExist):
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        now = timezone.now()
-        accepted_sub = Submission.objects.filter(
-            user=request.user,
-            problem=ip.problem,
-            verdict='ACCEPTED',
-            created_at__gte=session.started_at,
-            created_at__lte=now,
-        ).order_by('-created_at').first()
-
-        already_counted = (
-            accepted_sub is not None
-            and ip.submission_id == accepted_sub.id
-            and ip.solved
-        )
-
-        ip.solved = True
-        if accepted_sub:
-            ip.submission = accepted_sub
-        if not already_counted:
+        if not ip.solved:
+            ip.solved = True
             ip.attempts += 1
-
-        update_fields = ['solved', 'attempts']
-        if accepted_sub:
-            update_fields.append('submission')
-        ip.save(update_fields=update_fields)
+            ip.save(update_fields=['solved', 'attempts'])
 
         session.problems_solved = session.interview_problems.filter(solved=True).count()
         session.save(update_fields=['problems_solved'])

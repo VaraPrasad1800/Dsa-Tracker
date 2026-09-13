@@ -11,11 +11,6 @@ urlpatterns = [
     path('problems/<uuid:pk>/', views.ProblemDetailView.as_view(), name='problem-detail'),
     path('problems/<uuid:pk>/solution/', views.ProblemSolutionView.as_view(), name='problem-solution'),
 
-    # V2: Judge — per-problem endpoints
-    path('problems/<uuid:pk>/submissions/', views.ProblemSubmissionsView.as_view(), name='problem-submissions'),
-    path('problems/<uuid:pk>/test-cases/', views.ProblemTestCasesView.as_view(), name='problem-test-cases'),
-    path('problems/<uuid:pk>/language-template/', views.LanguageTemplateView.as_view(), name='problem-language-template'),
-
     path('user-progress/', views.UserProgressView.as_view(), name='user-progress-create'),
     path('user-progress/stats/', views.UserProgressStatsView.as_view(), name='user-progress-stats'),
     path('user/focus-topics/', views.UserFocusTopicsView.as_view(), name='user-focus-topics'),
@@ -68,13 +63,6 @@ urlpatterns = [
     # Bookmarks
     path('bookmarks/toggle/', views.BookmarkToggleView.as_view(), name='bookmark-toggle'),
     path('bookmarks/', views.BookmarkListView.as_view(), name='bookmark-list'),
-
-    # V2: Online Judge
-    path('run-code/', views.RunCodeView.as_view(), name='run-code'),
-    path('submit/', views.SubmitCodeView.as_view(), name='submit-code'),
-    path('languages/', views.LanguagesView.as_view(), name='languages'),
-    path('submissions/<uuid:pk>/', views.SubmissionDetailView.as_view(), name='submission-detail'),
-    path('submissions/<uuid:pk>/status/', views.SubmissionStatusView.as_view(), name='submission-status'),
 
     # V2: Challenges
     path('challenges/', views.ChallengeListView.as_view(), name='challenge-list'),

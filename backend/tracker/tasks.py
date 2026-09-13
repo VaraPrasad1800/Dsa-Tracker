@@ -92,16 +92,6 @@ def seed_achievements():
     return 'Achievements seeded'
 
 
-@shared_task(name='tracker.tasks.run_submission_task', queue='judge', ignore_result=True)
-def run_submission_task(submission_id):
-    """
-    Asynchronously executes an Online Judge submission.
-    Updates the Submission row with the verdict, metrics, and side effects.
-    """
-    from tracker.services.judge_service import execute_submission
-    return execute_submission(str(submission_id))
-
-
 @shared_task(name='tracker.tasks.cleanup_expired_tokens')
 def cleanup_expired_tokens():
     """

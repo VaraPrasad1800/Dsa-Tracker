@@ -374,7 +374,6 @@ def get_revision_queue(user) -> list:
         REVISION_ORDER_NEEDS_REVISIT, REVISION_ORDER_FAILED_SUBMISSION,
         REVISION_ORDER_RECENTLY_SOLVED,
     )
-    from tracker.models import Submission
 
     now = timezone.now()
     queue = []
@@ -421,28 +420,28 @@ def get_revision_queue(user) -> list:
             'reason': 'needs_revisit',
         })
 
-    # 4: Recent failed submissions (in last 7 days, not already in queue)
+    # 4: Recently attempted problems (in last 7 days, not already in queue)
     week_ago = now - timedelta(days=7)
-    failed_subs = Submission.objects.filter(
+    attempted = UserProblemProgress.objects.filter(
         user=user,
-        verdict__in=['WRONG_ANSWER', 'RUNTIME_ERROR', 'TLE'],
-        created_at__gte=week_ago,
-    ).select_related('problem').exclude(problem_id__in=seen_problem_ids).order_by('-created_at')
+        status='ATTEMPTED',
+        updated_at__gte=week_ago,
+    ).select_related('problem').exclude(problem_id__in=seen_problem_ids).order_by('-updated_at')
 
-    for sub in failed_subs[:10]:
-        if sub.problem_id in seen_problem_ids:
+    for prog in attempted[:10]:
+        if prog.problem_id in seen_problem_ids:
             continue
-        seen_problem_ids.add(sub.problem_id)
+        seen_problem_ids.add(prog.problem_id)
         queue.append({
             'priority': REVISION_ORDER_FAILED_SUBMISSION,
-            'problem_id': str(sub.problem_id),
-            'question_number': sub.problem.question_number,
-            'problem_title': sub.problem.title,
-            'difficulty': sub.problem.difficulty,
+            'problem_id': str(prog.problem_id),
+            'question_number': prog.problem.question_number,
+            'problem_title': prog.problem.title,
+            'difficulty': prog.problem.difficulty,
             'status': 'ATTEMPTED',
-            'leitner_box': None,
+            'leitner_box': prog.current_box,
             'next_review_date': None,
-            'reason': f'failed_{sub.verdict.lower()}',
+            'reason': 'attempted_problem',
         })
 
     # 5: Recently solved (last 3 days, for reinforcement)

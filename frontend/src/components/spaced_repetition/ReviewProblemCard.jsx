@@ -134,16 +134,18 @@ export default function ReviewProblemCard({
         </div>
 
         <div className="flex flex-wrap items-center justify-center gap-3 w-full sm:w-auto">
-          {/* Solve in Online Judge */}
-          {onSolve && (
-            <button
-              onClick={() => onSolve(item.problem.id)}
+          {/* Practice on LeetCode */}
+          {(item.problem?.leetcode_url || item.problem?.source_url) && (
+            <a
+              href={item.problem.leetcode_url || item.problem.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-indigo-600/20 cursor-pointer"
-              title="Open and solve in Online Judge"
+              title="Practice this problem on LeetCode"
             >
-              <Code className="h-4 w-4" />
-              <span>Solve in Judge</span>
-            </button>
+              <ExternalLink className="h-4 w-4" />
+              <span>Practice on LeetCode</span>
+            </a>
           )}
 
           {/* Solved */}

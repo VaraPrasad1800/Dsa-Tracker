@@ -192,19 +192,17 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
                 </Link>
               )}
 
-              {onSolve && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onSolve(problem.id);
-                  }}
+              {(problem.leetcode_url || problem.source_url) && (
+                <a
+                  href={problem.leetcode_url || problem.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-500 hover:to-purple-500 shadow-md transition-all ml-1 cursor-pointer"
-                  title="Open and solve in Online Judge"
+                  title="Practice this problem on LeetCode"
                 >
-                  <Code className="h-3.5 w-3.5" />
-                  <span>Solve in Judge</span>
-                </button>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Practice on LeetCode</span>
+                </a>
               )}
             </h2>
 

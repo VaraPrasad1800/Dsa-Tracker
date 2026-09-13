@@ -9,9 +9,9 @@ import {
   Award,
   AlertTriangle,
   Building2,
-  Code2,
   ArrowRight,
   ListOrdered,
+  ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { interviewApi, problemsApi } from '../api/client';
@@ -92,6 +92,18 @@ export default function InterviewModePage({ onNavigateToProblem }) {
       queryClient.invalidateQueries({ queryKey: ['points'] });
       setActiveSession(null);
       toast.success(`Simulation completed! Score: ${res.data.score} pts`);
+    },
+  });
+
+  // Solve Problem Mutation
+  const solveMutation = useMutation({
+    mutationFn: ({ sessionId, problemId }) => interviewApi.solveProblem(sessionId, problemId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interview_sessions'] });
+      toast.success('Problem marked as solved in interview!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.error || 'Failed to update problem status');
     },
   });
 
@@ -195,13 +207,35 @@ export default function InterviewModePage({ onNavigateToProblem }) {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => onNavigateToProblem && onNavigateToProblem(ip.problem)}
-                  className="w-full py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-bold border border-indigo-500/30 flex items-center justify-center gap-1.5 transition"
-                >
-                  <span>Solve in Online Judge</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-2 mt-3">
+                  {onNavigateToProblem && (
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToProblem(ip.problem)}
+                      className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition"
+                      title="View problem statement and practice"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Practice</span>
+                    </button>
+                  )}
+                  {!ip.solved ? (
+                    <button
+                      type="button"
+                      disabled={solveMutation.isPending}
+                      onClick={() => solveMutation.mutate({ sessionId: activeSession.id, problemId: ip.problem })}
+                      className="flex-1 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Mark Solved</span>
+                    </button>
+                  ) : (
+                    <div className="flex-1 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Solved ✓</span>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
           </div>

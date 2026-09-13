@@ -247,7 +247,7 @@ export default function ChallengesPage({ onSolve }) {
                                 ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 line-through'
                                 : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-white/[0.06]'
                             }`}
-                            title={onSolve ? "Solve in Online Judge" : undefined}
+                            title="View and practice problem"
                           >
                             <span className="text-indigo-400 font-mono font-bold">
                               #{cp.question_number || '—'}

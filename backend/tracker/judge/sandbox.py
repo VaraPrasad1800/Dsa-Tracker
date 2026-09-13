@@ -198,13 +198,15 @@ def _run_subprocess(
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.debug("[judge][%s] exit_code=%d  elapsed_ms=%d", step, proc.returncode, elapsed_ms)
+        MAX_CAPTURE_BYTES = 64 * 1024
         return (
-            stdout_data.decode("utf-8", errors="replace"),
-            stderr_data.decode("utf-8", errors="replace"),
+            stdout_data[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace"),
+            stderr_data[:MAX_CAPTURE_BYTES].decode("utf-8", errors="replace"),
             proc.returncode,
             elapsed_ms,
             peak_mem_kb,
         )
+
     except FileNotFoundError:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         tool = cmd[0] if cmd else "Executable"

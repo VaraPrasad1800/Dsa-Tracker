@@ -64,6 +64,11 @@ class Problem(models.Model):
         ],
         help_text="Execution time limit in milliseconds per test case. Fallback to difficulty-aware platform default if unset."
     )
+    time_limit_seconds = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Execution time limit in seconds per test case. Sourced from Problem model."
+    )
     memory_limit_mb = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -94,12 +99,26 @@ class Problem(models.Model):
         db_index=True,
         help_text='Whether this problem evaluates a function signature or reads from stdin/stdout'
     )
+    JUDGING_MODE_CHOICES = [
+        ('stdio', 'Standard I/O'),
+        ('function', 'Function-based'),
+    ]
+    judging_mode = models.CharField(
+        max_length=20,
+        choices=JUDGING_MODE_CHOICES,
+        default='stdio',
+        db_index=True,
+        help_text='Judging mode: stdio or function'
+    )
     input_format = models.TextField(blank=True, default='', help_text='Specification of the input format via stdin')
     output_format = models.TextField(blank=True, default='', help_text='Specification of the output format via stdout')
     function_name = models.CharField(max_length=100, blank=True, default='', help_text='Target function/method name for function-based problems')
     class_name = models.CharField(max_length=100, default='Solution', blank=True, help_text='Class name enclosing the solution method')
     parameters_meta = models.JSONField(default=list, blank=True, help_text='List of parameter definitions [{name: "nums", type: "list[int]"}]')
+    parameter_schema = models.JSONField(default=list, blank=True, help_text='Schema definition for function-mode judging')
+    has_multiple_valid_outputs = models.BooleanField(default=False, db_index=True, help_text='True if problem allows multiple valid outputs')
     return_type = models.CharField(max_length=100, default='', blank=True, help_text='Return type annotation for the method')
+
     READINESS_CHOICES = [
         ('JUDGE_READY', 'Judge Ready'),
         ('CONFIGURATION_REQUIRED', 'Configuration Required'),
@@ -451,11 +470,17 @@ class TestCase(models.Model):
     """A single test case for a problem (visible or hidden)."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     problem = models.ForeignKey(Problem, on_delete=models.CASCADE, related_name='test_cases')
+    is_sample = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text='True if visible sample test case available for Run Code.'
+    )
     is_hidden = models.BooleanField(
         default=False,
         help_text='Hidden test cases are NEVER returned to the frontend. '
                   'Only verdict + pass/fail count is returned.'
     )
+
     input_text = models.TextField(blank=True, default='')
     expected_output = models.TextField(blank=True, default='')
     order = models.IntegerField(default=0)

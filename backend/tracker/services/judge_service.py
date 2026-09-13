@@ -139,7 +139,7 @@ def run_code_for_user(user, problem_id: str, language: str, source_code: str, st
     # If no custom stdin was supplied, fallback to the problem's first visible sample test case
     effective_stdin = stdin
     if (effective_stdin is None or not effective_stdin.strip()) and problem:
-        first_tc = TestCase.objects.filter(problem=problem, is_hidden=False).order_by('order').first()
+        first_tc = TestCase.objects.filter(problem=problem, is_sample=True, is_hidden=False).order_by('order').first()
         if first_tc and first_tc.input_text:
             effective_stdin = first_tc.input_text
 
@@ -218,8 +218,13 @@ def execute_submission(submission_id: str) -> dict:
     language = submission.language
     source_code = submission.source_code
 
-    test_cases_qs = TestCase.objects.filter(problem=problem).order_by('is_hidden', 'order')
-    if not test_cases_qs.exists():
+    test_cases = list(
+        TestCase.objects.filter(problem=problem)
+        .order_by('order')
+        .values_list('input_text', 'expected_output', 'is_hidden', 'order')
+    )
+
+    if not test_cases:
         submission.verdict = 'EXECUTION_ERROR'
         submission.compile_error = 'No test cases configured for this problem yet. Please contact the platform admin.'
         submission.error_message = submission.compile_error
@@ -238,10 +243,6 @@ def execute_submission(submission_id: str) -> dict:
             'achievements_unlocked': [],
         }
 
-    test_cases = [
-        (tc.input_text, tc.expected_output, tc.is_hidden, tc.order)
-        for tc in test_cases_qs
-    ]
 
     timing_cfg = resolve_execution_timing(problem, language, total_tests=len(test_cases))
     time_limit = timing_cfg.effective_time_limit_seconds
@@ -264,6 +265,8 @@ def execute_submission(submission_id: str) -> dict:
             return_visible_details=True,
             cumulative_time_limit_ms=timing_cfg.cumulative_time_limit_ms,
             output_checker=problem_checker,
+            problem_id=str(problem.id),
+            has_multiple_valid_outputs=getattr(problem, 'has_multiple_valid_outputs', False),
         )
     finally:
         if hasattr(executor_fn, 'cleanup'):

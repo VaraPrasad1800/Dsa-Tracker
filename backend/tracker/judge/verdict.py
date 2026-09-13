@@ -168,10 +168,12 @@ def _check_float_with_tolerance(actual: str, expected: str, tol: float = 1e-5) -
         # Both NaN
         if math.isnan(a) and math.isnan(e):
             return True
-        # Relative + absolute tolerance (same as math.isclose defaults)
+        # Relative + absolute tolerance
         return math.isclose(a, e, rel_tol=tol, abs_tol=tol)
     except (ValueError, TypeError):
         return _check_normalized_text(actual, expected)
+
+
 
 
 def _check_array(actual: str, expected: str) -> bool:
@@ -236,7 +238,13 @@ def _check_json(actual: str, expected: str) -> bool:
 
 # ---------------------------------------------------------------------------
 # Public dispatcher
-# ---------------------------------------------------------------------------
+_CUSTOM_CHECKERS: dict = {}
+
+
+def register_custom_checker(problem_identifier: str, checker_fn):
+    """Register a custom checker callable(actual: str, expected: str) -> bool for a specific problem."""
+    _CUSTOM_CHECKERS[str(problem_identifier)] = checker_fn
+
 
 _STRATEGY_MAP = {
     'EXACT': _check_exact,
@@ -252,7 +260,13 @@ _STRATEGY_MAP = {
 }
 
 
-def _outputs_match(actual: str, expected: str, strategy: str = 'NORMALIZED_TEXT') -> bool:
+def _outputs_match(
+    actual: str,
+    expected: str,
+    strategy: str = 'NORMALIZED_TEXT',
+    problem_id: Optional[str] = None,
+    has_multiple_valid_outputs: bool = False,
+) -> bool:
     """
     Return True if actual output matches expected under the given strategy.
 
@@ -260,11 +274,15 @@ def _outputs_match(actual: str, expected: str, strategy: str = 'NORMALIZED_TEXT'
     Defaults to NORMALIZED_TEXT if the strategy is unrecognised.
 
     The ALTERNATIVES strategy is automatically applied when expected contains '|'
-    regardless of the strategy field, to preserve backwards compatibility.
+    or when has_multiple_valid_outputs is True.
     """
-    # Always respect pipe-separated alternatives if expected contains '|' and
-    # the chosen strategy is not itself ALTERNATIVES (avoid infinite recursion).
-    if '|' in expected and strategy != 'ALTERNATIVES':
+    if problem_id and str(problem_id) in _CUSTOM_CHECKERS:
+        try:
+            return bool(_CUSTOM_CHECKERS[str(problem_id)](actual, expected))
+        except Exception:
+            pass
+
+    if has_multiple_valid_outputs or strategy == 'ALTERNATIVES' or ('|' in expected and strategy != 'ALTERNATIVES'):
         return _check_alternatives(actual, expected, strategy=strategy)
 
     checker = _STRATEGY_MAP.get(strategy, _check_normalized_text)
@@ -307,6 +325,8 @@ def run_against_test_cases(
     return_visible_details: bool = True,
     cumulative_time_limit_ms: Optional[int] = None,
     output_checker: str = 'NORMALIZED_TEXT',
+    problem_id: Optional[str] = None,
+    has_multiple_valid_outputs: bool = False,
 ) -> JudgeResult:
     """
     Run *source_code* against all *test_cases* using *executor_fn*.
@@ -319,6 +339,8 @@ def run_against_test_cases(
                                   Hidden test I/O is NEVER returned regardless.
         cumulative_time_limit_ms: optional total cumulative runtime ceiling across all tests.
         output_checker: strategy key from Problem.output_checker (default: NORMALIZED_TEXT).
+        problem_id: optional Problem ID for custom checker resolution.
+        has_multiple_valid_outputs: whether problem allows multiple valid alternative outputs.
 
     Returns:
         JudgeResult with verdict, counts, and safe diagnostics.
@@ -364,10 +386,17 @@ def run_against_test_cases(
             sandbox_verdict = _sandbox_status_to_verdict(result.status)
 
             if sandbox_verdict == "ACCEPTED":
-                # Compare output using the problem's configured strategy
-                if _outputs_match(result.stdout, expected_output, strategy=output_checker):
+                # Compare output using the problem's configured strategy or custom checker
+                if _outputs_match(
+                    result.stdout,
+                    expected_output,
+                    strategy=output_checker,
+                    problem_id=problem_id,
+                    has_multiple_valid_outputs=has_multiple_valid_outputs,
+                ):
                     verdict = "ACCEPTED"
                     tests_passed += 1
+
                 else:
                     verdict = "WRONG_ANSWER"
             else:

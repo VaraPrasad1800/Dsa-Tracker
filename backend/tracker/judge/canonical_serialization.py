@@ -103,7 +103,7 @@ def serialize_to_stdin(args: List[Tuple[str, Any]]) -> str:
     lines = []
     for pname, val in args:
         if isinstance(val, list):
-            if val and isinstance(val[0], list):
+            if val and all(isinstance(r, list) for r in val):
                 # 2D Array / Matrix
                 r = len(val)
                 c = len(val[0]) if r > 0 else 0
@@ -112,6 +112,7 @@ def serialize_to_stdin(args: List[Tuple[str, Any]]) -> str:
                     lines.append(" ".join(str(x) for x in row))
             else:
                 # 1D Array / Linked list
+
                 n = len(val)
                 lines.append(str(n))
                 if n > 0:
@@ -159,10 +160,11 @@ def serialize_to_expected_stdout(raw_output: str, type_hint: str = "") -> str:
     cleaned = clean_raw_output_text(raw_output)
     val = parse_raw_value(cleaned, type_hint)
     if isinstance(val, list):
-        if val and isinstance(val[0], list):
+        if val and all(isinstance(r, list) for r in val):
             # 2D array
             return "\n".join(" ".join(str(x) for x in row) for row in val)
         return " ".join(str(x) for x in val)
+
     if isinstance(val, bool):
         return "true" if val else "false"
     return str(val).strip()
@@ -205,3 +207,118 @@ def determine_output_checker(problem_desc: str, return_type: str = "", examples:
             pass
 
     return "NORMALIZED_TEXT"
+
+
+_SMART_TO_ASCII = str.maketrans({
+    '\u201c': '"', '\u201d': '"',
+    '\u2018': "'", '\u2019': "'",
+})
+
+
+def repair_encoding_and_quotes(s: str) -> str:
+    """Repair double-encoded UTF-8 and map smart/curly quotes to ASCII equivalents."""
+    if not s:
+        return ""
+    needs_repair = any(
+        (ord(c) in (0xe2, 0xc3, 0xc2)) and i + 1 < len(s) and ord(s[i + 1]) in range(0x80, 0xc0)
+        for i, c in enumerate(s)
+    )
+    if needs_repair:
+        try:
+            s = s.encode('latin-1').decode('utf-8')
+        except Exception:
+            pass
+    return s.translate(_SMART_TO_ASCII)
+
+
+def normalize_stdin_text(raw_input: str) -> str:
+    """
+    Normalizes raw test case input text into clean canonical STDIN:
+    - Repairs double-encoded UTF-8 and smart quotes.
+    - If assignment format ('nums = [2,7], target = 9'), converts via parse_example_arguments & serialize_to_stdin.
+    - Strips outer quotes from single-string lines ("cabaa" -> cabaa).
+    - Unpacks multi-line or bracketed JSON arrays into canonical N / space-separated elements.
+    - Removes spurious blank lines between inputs.
+    """
+    if not raw_input:
+        return ""
+    s = repair_encoding_and_quotes(raw_input).strip()
+    if not s:
+        return ""
+
+    if '=' in s:
+        args = parse_example_arguments(s)
+        if args and len(args) > 0 and args[0][0] != 'arg1':
+            return serialize_to_stdin(args)
+
+    lines = s.splitlines()
+    normalized_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if not line:
+            i += 1
+            continue
+
+        # Multiline JSON array: [ \n "elem1", \n "elem2" \n ]
+        if line == '[':
+            bracket_block = [line]
+            i += 1
+            while i < len(lines) and lines[i].strip() != ']':
+                bracket_block.append(lines[i].strip())
+                i += 1
+            if i < len(lines):
+                bracket_block.append(lines[i].strip())
+                i += 1
+            full_arr_str = " ".join(bracket_block)
+            parsed_arr = parse_raw_value(full_arr_str)
+            if isinstance(parsed_arr, list):
+                if parsed_arr and all(isinstance(r, list) for r in parsed_arr):
+                    r = len(parsed_arr)
+                    c = len(parsed_arr[0]) if r > 0 else 0
+                    normalized_lines.append(f"{r} {c}")
+                    for row in parsed_arr:
+                        normalized_lines.append(" ".join(str(x) for x in row))
+                else:
+                    normalized_lines.append(str(len(parsed_arr)))
+                    if len(parsed_arr) > 0:
+                        normalized_lines.append(" ".join(str(x) for x in parsed_arr))
+            else:
+                normalized_lines.append(full_arr_str)
+            continue
+
+        # Single-line JSON array e.g. "[1, 2, 3]"
+        if line.startswith('[') and line.endswith(']'):
+            parsed_arr = parse_raw_value(line)
+            if isinstance(parsed_arr, list):
+                if parsed_arr and all(isinstance(r, list) for r in parsed_arr):
+                    r = len(parsed_arr)
+                    c = len(parsed_arr[0]) if r > 0 else 0
+                    normalized_lines.append(f"{r} {c}")
+                    for row in parsed_arr:
+                        normalized_lines.append(" ".join(str(x) for x in row))
+                else:
+                    normalized_lines.append(str(len(parsed_arr)))
+                    if len(parsed_arr) > 0:
+                        normalized_lines.append(" ".join(str(x) for x in parsed_arr))
+                i += 1
+                continue
+
+        # Quoted string line e.g. '"cabaa"' -> 'cabaa'
+        if len(line) >= 2 and ((line.startswith('"') and line.endswith('"')) or (line.startswith("'") and line.endswith("'"))):
+            normalized_lines.append(line[1:-1])
+            i += 1
+            continue
+
+        normalized_lines.append(line)
+        i += 1
+
+    return "\n".join(normalized_lines)
+
+
+def normalize_expected_output_text(raw_output: str, type_hint: str = "") -> str:
+    """Normalizes raw expected output into canonical stdout representation."""
+    if not raw_output:
+        return ""
+    cleaned = repair_encoding_and_quotes(raw_output)
+    return serialize_to_expected_stdout(cleaned, type_hint)

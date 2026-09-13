@@ -9,11 +9,15 @@ This module:
 """
 
 from __future__ import annotations
+import logging
 from functools import partial
 from typing import Optional
 
 from tracker.judge.languages import get_language_config, SUPPORTED_LANGUAGES
 from tracker.judge.sandbox import execute, ExecutionResult, BatchExecutionSandbox
+from tracker.judge.judge0 import is_judge0_configured, execute_judge0
+
+logger = logging.getLogger(__name__)
 
 
 def _make_executor(language: str, time_limit: float, memory_limit_mb: int):
@@ -23,6 +27,18 @@ def _make_executor(language: str, time_limit: float, memory_limit_mb: int):
     eff_mem = int(memory_limit_mb)
 
     def _execute(source_code: str, stdin: str) -> ExecutionResult:
+        if is_judge0_configured():
+            try:
+                return execute_judge0(
+                    language=language,
+                    source_code=source_code,
+                    stdin=stdin,
+                    time_limit_seconds=eff_time,
+                    memory_limit_mb=eff_mem,
+                )
+            except Exception as exc:
+                logger.warning("Judge0 execution failed (%s); falling back to local sandbox.", exc)
+
         return execute(
             language_config=cfg,
             source_code=source_code,
@@ -48,8 +64,8 @@ def run_code(
     Returns an ExecutionResult with stdout / stderr / status.
     """
     cfg = get_language_config(language)   # raises ValueError for unsupported
-    tl = time_limit_seconds or cfg["timeout_seconds"]
-    ml = memory_limit_mb or cfg["memory_limit_mb"]
+    tl = float(time_limit_seconds) if time_limit_seconds is not None else float(cfg["timeout_seconds"])
+    ml = int(memory_limit_mb) if memory_limit_mb is not None else int(cfg["memory_limit_mb"])
     executor = _make_executor(language, tl, ml)
     return executor(source_code, stdin)
 
@@ -62,10 +78,15 @@ def get_test_executor(
     """
     Return a (source_code, stdin) -> ExecutionResult callable for use
     by verdict.run_against_test_cases().
-    For compiled languages (C++, C, Java), compiles once per judge operation.
+    Uses Judge0 when configured, or BatchExecutionSandbox for single-compilation local execution.
     """
     cfg = get_language_config(language)
-    tl = time_limit_seconds or cfg["timeout_seconds"]
-    ml = memory_limit_mb or cfg["memory_limit_mb"]
+    tl = float(time_limit_seconds) if time_limit_seconds is not None else float(cfg["timeout_seconds"])
+    ml = int(memory_limit_mb) if memory_limit_mb is not None else int(cfg["memory_limit_mb"])
+
+    if is_judge0_configured():
+        return _make_executor(language, tl, ml)
+
     return BatchExecutionSandbox(cfg, tl, ml)
+
 

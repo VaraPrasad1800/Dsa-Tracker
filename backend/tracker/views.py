@@ -1826,9 +1826,10 @@ class ProblemTestCasesView(APIView):
                 hydrate_problem_contract(problem)
         except Exception:
             pass
-        test_cases = TestCase.objects.filter(problem_id=pk, is_hidden=False).order_by('order')
+        test_cases = TestCase.objects.filter(problem_id=pk, is_sample=True, is_hidden=False).order_by('order')
         serializer = TestCaseSerializer(test_cases, many=True)
         return Response({'test_cases': serializer.data})
+
 
 
 # ============================================================================

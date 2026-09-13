@@ -97,23 +97,69 @@ class Command(BaseCommand):
         # 0. Repair double-encoded UTF-8 and normalise smart quotes in test case fields.
         #    This fixes corruption where UTF-8 bytes (e.g. e2 80 9c for U+201C) were
         #    stored as raw Latin-1 codepoints, producing garbage when sent to the judge.
+        #    Also strips surrounding quotes from string arguments and expected outputs.
         encoding_repaired = 0
         with transaction.atomic():
             for tc in tc_query.iterator(chunk_size=500):
-                changed = False
-                new_input = _repair_double_encoded_utf8(tc.input_text or '')
-                new_output = _repair_double_encoded_utf8(tc.expected_output or '')
-                # Also normalise any surviving smart quotes
-                new_input = _normalize_smart_quotes(new_input)
-                new_output = _normalize_smart_quotes(new_output)
-                if new_input != (tc.input_text or '') or new_output != (tc.expected_output or ''):
+                raw_in = tc.input_text or ''
+                raw_out = tc.expected_output or ''
+                new_input = _normalize_smart_quotes(_repair_double_encoded_utf8(raw_in))
+                new_output = _normalize_smart_quotes(_repair_double_encoded_utf8(raw_out))
+
+                # Strip surrounding quotes from lines in input_text (e.g. "cabaa" -> cabaa)
+                in_lines = new_input.splitlines()
+                clean_in_lines = []
+                for line in in_lines:
+                    s = line.strip()
+                    if len(s) >= 2 and ((s.startswith('"') and s.endswith('"')) or (s.startswith("'") and s.endswith("'"))):
+                        s = s[1:-1]
+                    clean_in_lines.append(s)
+                new_input = '\n'.join(clean_in_lines)
+
+                # Strip surrounding quotes from expected_output (e.g. "cbcabaaaaa" -> cbcabaaaaa)
+                s_out = new_output.strip()
+                if len(s_out) >= 2 and ((s_out.startswith('"') and s_out.endswith('"')) or (s_out.startswith("'") and s_out.endswith("'"))):
+                    new_output = s_out[1:-1]
+
+                if new_input != raw_in or new_output != raw_out:
                     encoding_repaired += 1
                     if not dry_run:
                         tc.input_text = new_input
                         tc.expected_output = new_output
                         tc.save(update_fields=['input_text', 'expected_output'])
 
-        self.stdout.write(f"Repaired double-encoded UTF-8 in {encoding_repaired} test cases.")
+        self.stdout.write(f"Repaired encoding/quotes in {encoding_repaired} test cases.")
+
+        # 0b. Repair problem examples
+        prob_query = Problem.objects.all()
+        if qnum:
+            prob_query = prob_query.filter(question_number=qnum)
+
+        examples_repaired = 0
+        with transaction.atomic():
+            for p in prob_query.iterator(chunk_size=200):
+                if not p.examples:
+                    continue
+                changed = False
+                new_examples = []
+                for ex in p.examples:
+                    new_ex = {}
+                    for k, v in ex.items():
+                        if isinstance(v, str):
+                            fixed_v = _normalize_smart_quotes(_repair_double_encoded_utf8(v))
+                            if fixed_v != v:
+                                changed = True
+                            new_ex[k] = fixed_v
+                        else:
+                            new_ex[k] = v
+                    new_examples.append(new_ex)
+                if changed:
+                    examples_repaired += 1
+                    if not dry_run:
+                        p.examples = new_examples
+                        p.save(update_fields=['examples'])
+
+        self.stdout.write(f"Repaired double-encoded UTF-8 in examples for {examples_repaired} problems.")
 
         # 1. Sanitize polluted test cases (Explanation/Note blocks in expected_output)
         cutoff_pattern = re.compile(

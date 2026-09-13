@@ -81,18 +81,23 @@ class CoreE2EFeaturesTests(TestCase):
         })
         self.assertEqual(res_start.status_code, 201)
         sess_id = res_start.data['id']
-        prob_id = res_start.data['interview_problems'][0]['problem']
+        interview_prob = res_start.data['interview_problems'][0]
+        prob_id = interview_prob['problem']
+        self.assertIn('leetcode_url', interview_prob)
+        self.assertFalse(interview_prob['solved'])
 
         # Solve interview problem
         res_solve = self.client.post(f'/api/interview-sessions/{sess_id}/problems/{prob_id}/solve/')
         self.assertEqual(res_solve.status_code, 200)
         self.assertTrue(res_solve.data['solved'])
+        self.assertEqual(res_solve.data['problems_solved'], 1)
 
         # End interview session
         res_end = self.client.post(f'/api/interview-sessions/{sess_id}/end/')
         self.assertEqual(res_end.status_code, 200)
         self.assertEqual(res_end.data['status'], 'COMPLETED')
         self.assertEqual(res_end.data['problems_solved'], 1)
+        self.assertGreater(res_end.data['score'], 0)
 
         # 10. Notifications
         res = self.client.get('/api/notifications/')

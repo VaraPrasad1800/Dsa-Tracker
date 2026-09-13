@@ -354,18 +354,32 @@ class NotificationSerializer(serializers.ModelSerializer):
 class InterviewProblemSerializer(serializers.ModelSerializer):
     problem_title = serializers.SerializerMethodField()
     problem_difficulty = serializers.SerializerMethodField()
+    problem_slug = serializers.CharField(source='problem.slug', read_only=True)
     question_number = serializers.IntegerField(source='problem.question_number', read_only=True)
+    leetcode_url = serializers.SerializerMethodField()
+    source_url = serializers.CharField(source='problem.source_url', read_only=True)
     solved = serializers.SerializerMethodField()
 
     class Meta:
         model = InterviewProblem
-        fields = ['id', 'problem', 'question_number', 'problem_title', 'problem_difficulty', 'solved', 'attempts']
+        fields = [
+            'id', 'problem', 'question_number', 'problem_title',
+            'problem_slug', 'problem_difficulty', 'leetcode_url',
+            'source_url', 'solved', 'attempts',
+        ]
 
     def get_problem_title(self, obj):
         return obj.problem.title
 
     def get_problem_difficulty(self, obj):
         return obj.problem.difficulty
+
+    def get_leetcode_url(self, obj):
+        if obj.problem.leetcode_id:
+            return f'https://leetcode.com/problems/{obj.problem.slug}/'
+        if obj.problem.source_url:
+            return obj.problem.source_url
+        return None
 
     def get_solved(self, obj):
         return bool(obj.solved)

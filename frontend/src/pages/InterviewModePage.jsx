@@ -98,7 +98,21 @@ export default function InterviewModePage({ onNavigateToProblem }) {
   // Solve Problem Mutation
   const solveMutation = useMutation({
     mutationFn: ({ sessionId, problemId }) => interviewApi.solveProblem(sessionId, problemId),
-    onSuccess: () => {
+    onSuccess: (res, variables) => {
+      setActiveSession((prev) => {
+        if (!prev) return prev;
+        const updated = (prev.interview_problems || []).map((ip) => {
+          if (ip.problem === variables.problemId || ip.id === variables.problemId) {
+            return { ...ip, solved: true, attempts: (ip.attempts || 0) + 1 };
+          }
+          return ip;
+        });
+        return {
+          ...prev,
+          interview_problems: updated,
+          problems_solved: res.data?.problems_solved ?? (prev.problems_solved + 1),
+        };
+      });
       queryClient.invalidateQueries({ queryKey: ['interview_sessions'] });
       toast.success('Problem marked as solved in interview!');
     },
@@ -164,7 +178,7 @@ export default function InterviewModePage({ onNavigateToProblem }) {
         <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl p-6 border border-white/[0.08] space-y-5">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Code2 className="h-5 w-5 text-indigo-400" />
+              <ListOrdered className="h-5 w-5 text-indigo-400" />
               Interview Problems ({activeSession.interview_problems?.length})
             </h2>
             <div className="text-xs text-slate-400">
@@ -207,31 +221,53 @@ export default function InterviewModePage({ onNavigateToProblem }) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mt-3">
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  {(() => {
+                    const leetcodeLink =
+                      ip.leetcode_url ||
+                      ip.source_url ||
+                      (ip.problem_slug ? `https://leetcode.com/problems/${ip.problem_slug}/` : null);
+                    return (
+                      leetcodeLink && (
+                        <a
+                          href={leetcodeLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 min-w-[130px] py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition no-underline"
+                          title="Open and solve problem externally on LeetCode"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          <span>Open on LeetCode</span>
+                        </a>
+                      )
+                    );
+                  })()}
+
                   {onNavigateToProblem && (
                     <button
                       type="button"
                       onClick={() => onNavigateToProblem(ip.problem)}
-                      className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition"
-                      title="View problem statement and practice"
+                      className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/10 flex items-center justify-center gap-1.5 transition"
+                      title="View problem statement, examples and constraints"
                     >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                      <span>Practice</span>
+                      <span>Details</span>
                     </button>
                   )}
+
                   {!ip.solved ? (
                     <button
                       type="button"
                       disabled={solveMutation.isPending}
                       onClick={() => solveMutation.mutate({ sessionId: activeSession.id, problemId: ip.problem })}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center justify-center gap-1.5 transition cursor-pointer"
+                      className="flex-1 min-w-[130px] py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                      title="Click when you have solved the problem"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Mark Solved</span>
+                      <span>Mark as Solved</span>
                     </button>
                   ) : (
-                    <div className="flex-1 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center justify-center gap-1.5">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    <div className="flex-1 min-w-[130px] py-2 px-3 rounded-xl bg-emerald-500/10 text-emerald-400 text-xs font-bold border border-emerald-500/20 flex items-center justify-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                       <span>Solved ✓</span>
                     </div>
                   )}

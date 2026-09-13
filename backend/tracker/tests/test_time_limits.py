@@ -162,10 +162,11 @@ class ProblemTimeLimitsTests(TestCase):
             'time_limit_ms': 99999,
         }
         res = self.client.post('/api/submit/', payload, format='json')
-        self.assertEqual(res.status_code, 200)
+        self.assertIn(res.status_code, [200, 202])
         # Authoritative limit on custom_problem is 300ms base (effective Python: 680ms).
         # Sleeping 2s must exceed the limit and produce TLE.
-        self.assertEqual(res.data['verdict'], 'TLE')
+        sub = Submission.objects.get(id=res.data['submission_id'])
+        self.assertEqual(sub.verdict, 'TLE')
 
     def test_time_limit_exceeded_verdict(self):
         """Long-running or infinite loop produces TLE verdict."""

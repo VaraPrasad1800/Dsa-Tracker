@@ -6,6 +6,7 @@ import {
   REFRESH_TOKEN_KEY,
   USER_KEY,
   getAccessToken,
+  getRefreshToken,
 } from '../api/client';
 
 const AuthContext = createContext();
@@ -126,7 +127,15 @@ export const AuthProvider = ({ children }) => {
     return res.data;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const refresh = getRefreshToken() || localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (refresh) {
+      try {
+        await authApi.logout(refresh);
+      } catch {
+        // Continue clearing local state even if revocation request fails
+      }
+    }
     clearSession();
     queryClient.clear();
   };

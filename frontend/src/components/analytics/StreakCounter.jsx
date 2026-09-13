@@ -19,12 +19,12 @@ function useCountUp(target, duration = 1000) {
 }
 
 export default function StreakCounter({ streaks }) {
-  if (!streaks) return null;
-
-  const currentStreak = streaks.current_streak || 0;
-  const longestStreak = streaks.longest_streak || 0;
+  const currentStreak = streaks?.current_streak || 0;
+  const longestStreak = streaks?.longest_streak || 0;
   const displayCurrent = useCountUp(currentStreak);
   const displayLongest = useCountUp(longestStreak);
+
+  if (!streaks) return null;
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

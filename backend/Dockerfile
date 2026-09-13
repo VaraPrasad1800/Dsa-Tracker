@@ -60,4 +60,4 @@ RUN echo "=== Judge runtime smoke test ===" \
 
 EXPOSE 10000
 
-CMD ["sh", "-c", "gunicorn core.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 2 --timeout 120"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:${PORT:-10000} --workers 2 --timeout 120"]

@@ -21,7 +21,7 @@ from tracker.models import (
     Tag, Company, Problem, UserProblemProgress, ReviewHistory,
     DailyStat, UserStreak, StudyPlan, StudyPlanDay, UserProfile, Solution,
     Submission, Challenge, Achievement, Notification, InterviewSession,
-    InterviewProblem, DSAPattern, TestCase, UserPoints,
+    InterviewProblem, DSAPattern, TestCase, UserPoints, RefreshToken,
 )
 from tracker.serializers import (
     TagSerializer, CompanySerializer, ProblemSerializer, ProblemListSerializer,
@@ -61,6 +61,8 @@ from tracker.services.auth_tokens import (
     get_verification_expiry_hours,
     get_password_reset_expiry_hours,
 )
+from tracker.throttles import JudgeRunThrottle, JudgeSubmitThrottle
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 User = get_user_model()
 
@@ -91,6 +93,11 @@ class ProblemPagination(PageNumberPagination):
 class ProblemListView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="List problems",
+        description="Paginated list of problems with filtering, search, and practice status.",
+        responses={200: ProblemListSerializer(many=True)},
+    )
     def get(self, request):
         user = get_request_user(request)
         queryset = Problem.objects.all().prefetch_related('tags', 'companies')
@@ -264,6 +271,11 @@ class ProblemListView(APIView):
 class ProblemDetailView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="Get problem details",
+        description="Detailed problem statement, constraints, examples, and judge configuration.",
+        responses={200: ProblemSerializer},
+    )
     def get(self, request, pk):
         try:
             problem = Problem.objects.prefetch_related('tags', 'companies').get(pk=pk)
@@ -542,6 +554,11 @@ class CompanyListView(APIView):
 class UserProgressView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Update problem practice progress",
+        description="Records a review attempt and updates Leitner 5-box spaced repetition intervals.",
+        responses={200: UserProblemProgressSerializer},
+    )
     def post(self, request):
         user = get_request_user(request)
         problem_id = request.data.get('problem_id')
@@ -839,6 +856,11 @@ class TopicPracticeView(APIView):
 class DueTodayView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Problems due for review today",
+        description="Returns problems in the Leitner spaced repetition system scheduled for review.",
+        responses={200: ProblemListSerializer(many=True)},
+    )
     def get(self, request):
         user = get_request_user(request)
         now = timezone.now()
@@ -1066,6 +1088,11 @@ class RegisterView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="Register user",
+        description="Creates a new user account and dispatches an email verification link.",
+        responses={201: OpenApiResponse(description="Account created successfully")},
+    )
     def post(self, request):
         username = request.data.get('username', '').strip()
         email = request.data.get('email', '').strip()
@@ -1141,6 +1168,11 @@ class LoginView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="Log in user",
+        description="Authenticates with username/email and password, returning JWT access and refresh tokens.",
+        responses={200: OpenApiResponse(description="Login successful with tokens and user object")},
+    )
     def post(self, request):
         identifier = (request.data.get('username') or request.data.get('email') or '').strip()
         password = request.data.get('password', '')
@@ -1398,6 +1430,35 @@ class ResetPasswordView(APIView):
         return Response({'message': 'Password reset successful. You can now log in with your new password.'})
 
 
+class LogoutView(APIView):
+    """
+    Revoke a refresh token on user logout.
+
+    POST /api/auth/logout/
+    Body: { "refresh_token": "string" }
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Log out user",
+        description="Revokes the provided refresh token so it cannot be used again.",
+        responses={200: OpenApiResponse(description="Logged out successfully")},
+    )
+    def post(self, request):
+        refresh_token = (request.data.get('refresh_token') or '').strip()
+        if not refresh_token:
+            return Response({'error': 'refresh_token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        token_hash = hash_token(refresh_token)
+        token_record = RefreshToken.objects.filter(token_hash=token_hash).first()
+        if token_record:
+            token_record.revoked = True
+            token_record.revoked_at = timezone.now()
+            token_record.save(update_fields=['revoked', 'revoked_at'])
+
+        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
 class RefreshTokenView(APIView):
     """Refresh an access token using a valid refresh token.
 
@@ -1406,6 +1467,11 @@ class RefreshTokenView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        summary="Refresh access token",
+        description="Verifies the refresh token, revokes it (token rotation), and issues a new pair of access + refresh tokens.",
+        responses={200: OpenApiResponse(description="New access and refresh token pair")},
+    )
     def post(self, request):
         refresh_token = (request.data.get('refresh_token') or '').strip()
         if not refresh_token:
@@ -1420,6 +1486,17 @@ class RefreshTokenView(APIView):
         if payload.get('token_type') != 'refresh':
             return Response({'error': 'Invalid token type: expected a refresh token.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        token_hash = hash_token(refresh_token)
+        token_record = RefreshToken.objects.filter(token_hash=token_hash).first()
+        if not token_record:
+            return Response({'error': 'Invalid or unknown refresh token.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if token_record.revoked:
+            return Response({'error': 'Refresh token has been revoked.'}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if token_record.expires_at <= timezone.now():
+            return Response({'error': 'Refresh token has expired.'}, status=status.HTTP_401_UNAUTHORIZED)
+
         try:
             user = User.objects.get(pk=payload.get('user_id'))
         except User.DoesNotExist:
@@ -1427,6 +1504,12 @@ class RefreshTokenView(APIView):
         if not user.is_active:
             return Response({'error': 'Account is disabled.'}, status=status.HTTP_403_FORBIDDEN)
 
+        # Revoke the old refresh token upon rotation
+        token_record.revoked = True
+        token_record.revoked_at = timezone.now()
+        token_record.save(update_fields=['revoked', 'revoked_at'])
+
+        # Issue new tokens (which creates a new RefreshToken record)
         tokens = generate_jwt_tokens(user)
         return Response({
             'access_token': tokens['access'],
@@ -1515,6 +1598,11 @@ class AnalyticsDashboardView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="User analytics dashboard",
+        description="Returns placement readiness score, streak history, topic mastery, and recent activity.",
+        responses={200: OpenApiResponse(description="Aggregated user dashboard analytics")},
+    )
     def get(self, request):
         dashboard = get_user_dashboard(request.user)
         return Response(dashboard)
@@ -1531,9 +1619,24 @@ class RunCodeView(APIView):
     Body: { language, source_code, stdin, problem_id (optional) }
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [JudgeRunThrottle]
 
+    @extend_schema(
+        summary="Run code in sandbox",
+        description="Executes user-provided code against custom stdin without recording a submission.",
+        responses={200: OpenApiResponse(description="Execution result with output and performance metrics")},
+    )
     def post(self, request):
         from tracker.services.judge_service import run_code_for_user
+
+        # Load check: if system has too many pending judge submissions, return 503
+        pending_count = Submission.objects.filter(verdict='PENDING').count()
+        if pending_count > 30:
+            return Response(
+                {'error': 'System is experiencing high judge load. Please try again shortly.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         language = request.data.get('language', '').strip().lower()
         source_code = request.data.get('source_code', '')
         stdin = request.data.get('stdin', '')
@@ -1551,14 +1654,22 @@ class RunCodeView(APIView):
 class SubmitCodeView(APIView):
     """
     POST /api/submit/
-    Submit code for judging against all test cases (visible + hidden).
+    Submit code asynchronously for judging against all test cases (visible + hidden).
     Body: { language, source_code, problem_id }
-    Returns: verdict, tests_passed, tests_total — NEVER hidden test I/O.
+    Returns 202 Accepted: { "submission_id": ..., "status": "PENDING", "verdict": "PENDING" }
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [JudgeSubmitThrottle]
 
+    @extend_schema(
+        summary="Submit solution for judging",
+        description="Creates a pending submission and dispatches evaluation to background Celery queue. Returns 202 Accepted.",
+        responses={202: OpenApiResponse(description="Pending submission created")},
+    )
     def post(self, request):
-        from tracker.services.judge_service import submit_code
+        from tracker.services.judge_service import create_pending_submission
+        from tracker.tasks import run_submission_task
+
         language = request.data.get('language', '').strip().lower()
         source_code = request.data.get('source_code', '')
         problem_id = request.data.get('problem_id', '')
@@ -1570,14 +1681,75 @@ class SubmitCodeView(APIView):
         if not problem_id:
             return Response({'error': 'problem_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        result = submit_code(request.user, problem_id, language, source_code)
-        return Response(result)
+        # Check for same-problem pending submission cooldown (prevents spamming queue)
+        pending_sub = Submission.objects.filter(
+            user=request.user, problem_id=problem_id, verdict='PENDING'
+        ).first()
+        if pending_sub:
+            return Response({
+                'error': 'You already have a pending submission for this problem. Please wait for it to complete.',
+                'submission_id': str(pending_sub.id),
+                'status': 'PENDING',
+                'verdict': 'PENDING',
+            }, status=status.HTTP_409_CONFLICT)
+
+        try:
+            submission = create_pending_submission(request.user, problem_id, language, source_code)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except Problem.DoesNotExist:
+            return Response({'error': 'Problem not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Dispatch async Celery task
+        run_submission_task.delay(str(submission.id))
+
+        return Response({
+            'submission_id': str(submission.id),
+            'status': 'PENDING',
+            'verdict': 'PENDING',
+            'tests_passed': 0,
+            'tests_total': 0,
+            'execution_time_ms': 0,
+            'memory_kb': 0,
+        }, status=status.HTTP_202_ACCEPTED)
+
+
+class SubmissionStatusView(APIView):
+    """
+    GET /api/submissions/<uuid:pk>/status/
+    Lightweight endpoint for polling submission evaluation status.
+    Returns: { "submission_id": ..., "verdict": ..., "tests_passed": ..., "tests_total": ... }
+    """
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Check submission evaluation status",
+        description="Lightweight polling endpoint to retrieve current evaluation state and test metrics.",
+        responses={200: OpenApiResponse(description="Submission evaluation verdict and progress")},
+    )
+    def get(self, request, pk):
+        try:
+            s = Submission.objects.get(id=pk, user=request.user)
+        except (Submission.DoesNotExist, ValueError):
+            return Response({'error': 'Submission not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            'submission_id': str(s.id),
+            'verdict': s.verdict,
+            'tests_passed': s.tests_passed,
+            'tests_total': s.tests_total,
+        })
 
 
 class ProblemSubmissionsView(APIView):
     """GET /api/problems/<uuid>/submissions/ — user's own submissions for a problem."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="List user problem submissions",
+        description="Returns submission history for a specific problem for the authenticated user.",
+        responses={200: SubmissionSerializer(many=True)},
+    )
     def get(self, request, pk):
         from tracker.services.judge_service import get_submission_history
         history = get_submission_history(request.user, str(pk))
@@ -1588,6 +1760,11 @@ class SubmissionDetailView(APIView):
     """GET /api/submissions/<uuid>/ — full detail for a single submission (own only)."""
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Get submission details",
+        description="Returns full diagnostic and per-test execution details for a submission.",
+        responses={200: SubmissionDetailSerializer},
+    )
     def get(self, request, pk):
         from tracker.services.judge_service import get_submission_detail
         detail = get_submission_detail(request.user, str(pk))

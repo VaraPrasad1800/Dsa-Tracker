@@ -40,9 +40,14 @@ logger = logging.getLogger(__name__)
 
 def _prepare_executable_code(problem: Problem | None, language: str, source_code: str) -> str:
     """
-    Return user submitted source code as-is for complete standalone program execution.
-    No harnesses, class Solution wrappers, or synthetic drivers are appended.
+    Return executable code. If user code contains class Solution or problem execution_mode is FUNCTION,
+    and a template has harness_code, append harness_code to user source code.
+    Otherwise return as-is for complete standalone execution.
     """
+    if problem and ('class Solution' in source_code or getattr(problem, 'execution_mode', '') == 'FUNCTION'):
+        template = LanguageTemplate.objects.filter(problem=problem, language=language).first()
+        if template and template.harness_code:
+            return source_code + "\n\n" + template.harness_code
     return source_code
 
 
@@ -138,38 +143,73 @@ def run_code_for_user(user, problem_id: str, language: str, source_code: str, st
 # Public: Submit
 # ---------------------------------------------------------------------------
 
-@transaction.atomic
-def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
+# ---------------------------------------------------------------------------
+# Public: Fast synchronous pending submission creation
+# ---------------------------------------------------------------------------
+
+def create_pending_submission(user, problem_id: str, language: str, source_code: str) -> Submission:
     """
-    Run *source_code* against all test cases (visible + hidden) for *problem_id*.
-
-    Saves a Submission record.  If Accepted, integrates with Leitner progress.
-    Returns a SAFE result dict — no hidden test inputs or expected outputs.
+    Validate submission inputs and create a Submission record with verdict='PENDING'.
+    Fast synchronous path executed inside HTTP request before queuing Celery task.
     """
-    # 1. Validate language
-    try:
-        get_language_config(language)
-    except ValueError as e:
-        return _error_response(str(e))
+    from tracker.judge.sandbox import _check_sizes
 
-    # 2. Load problem
-    try:
-        problem = Problem.objects.get(id=problem_id)
-    except (Problem.DoesNotExist, ValueError):
-        return _error_response('Problem not found.')
+    get_language_config(language)  # raises ValueError if unsupported
 
-    # 3. Load test cases (both visible and hidden — but never return hidden I/O)
+    if not problem_id:
+        raise ValueError("problem_id is required.")
+
+    problem = Problem.objects.get(id=problem_id)  # raises Problem.DoesNotExist or ValueError
+
+    size_err = _check_sizes(source_code, "")
+    if size_err:
+        raise ValueError(size_err)
+
+    submission = Submission.objects.create(
+        user=user,
+        problem=problem,
+        language=language,
+        source_code=source_code,
+        verdict='PENDING',
+    )
+    return submission
+
+
+# ---------------------------------------------------------------------------
+# Public: Execute submission (used by Celery worker task)
+# ---------------------------------------------------------------------------
+
+def execute_submission(submission_id: str) -> dict:
+    """
+    Execute an existing pending submission against all test cases.
+    Updates the Submission record with the verdict and metrics,
+    and runs Leitner/points/achievement side-effects if Accepted.
+    """
+    try:
+        submission = Submission.objects.select_related('problem', 'user').get(id=submission_id)
+    except (Submission.DoesNotExist, ValueError):
+        return _error_response('Submission not found.')
+
+    problem = submission.problem
+    user = submission.user
+    language = submission.language
+    source_code = submission.source_code
+
     test_cases_qs = TestCase.objects.filter(problem=problem).order_by('is_hidden', 'order')
     if not test_cases_qs.exists():
+        submission.verdict = 'EXECUTION_ERROR'
+        submission.compile_error = 'No test cases configured for this problem yet. Please contact the platform admin.'
+        submission.error_message = submission.compile_error
+        submission.save(update_fields=['verdict', 'compile_error', 'error_message'])
         return {
-            'submission_id': None,
+            'submission_id': str(submission.id),
             'verdict': 'EXECUTION_ERROR',
             'tests_passed': 0,
             'tests_total': 0,
             'execution_time_ms': 0,
             'memory_kb': 0,
-            'compile_error': 'No test cases configured for this problem yet. Please contact the platform admin.',
-            'error_message': 'No test cases configured for this problem yet. Please contact the platform admin.',
+            'compile_error': submission.compile_error,
+            'error_message': submission.error_message,
             'test_results': [],
             'points_awarded': 0,
             'achievements_unlocked': [],
@@ -185,49 +225,41 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
     memory_limit = timing_cfg.memory_limit_mb
 
     logger.info(
-        "Judging submission: user=%s problem=#%s (%s) lang=%s tests=%d base_limit_ms=%d eff_limit_s=%.3f cumulative_ms=%d",
-        user.username, getattr(problem, 'question_number', None), problem.title, language, len(test_cases),
+        "Judging submission: id=%s user=%s problem=#%s (%s) lang=%s tests=%d base_limit_ms=%d eff_limit_s=%.3f cumulative_ms=%d",
+        submission.id, user.username, getattr(problem, 'question_number', None), problem.title, language, len(test_cases),
         timing_cfg.base_time_limit_ms, time_limit, timing_cfg.cumulative_time_limit_ms
     )
 
-    # 4. Build executor and run with complete standalone program
     executor_fn = get_test_executor(language, time_limit, memory_limit)
 
     def _executor_wrapper(source, stdin):
         return executor_fn(source, stdin)
 
     problem_checker = getattr(problem, 'output_checker', 'NORMALIZED_TEXT') or 'NORMALIZED_TEXT'
+    executable_code = _prepare_executable_code(problem, language, source_code)
     judge_result = run_against_test_cases(
         executor_fn=_executor_wrapper,
         test_cases=test_cases,
-        source_code=source_code,
+        source_code=executable_code,
         return_visible_details=True,
         cumulative_time_limit_ms=timing_cfg.cumulative_time_limit_ms,
         output_checker=problem_checker,
     )
 
-    # 5. Save Submission with pristine original source code
-    submission = Submission.objects.create(
-        user=user,
-        problem=problem,
-        language=language,
-        source_code=source_code,
-        verdict=judge_result.final_verdict,
-        tests_passed=judge_result.tests_passed,
-        tests_total=judge_result.tests_total,
-        execution_time_ms=judge_result.execution_time_ms,
-        memory_kb=judge_result.memory_kb,
-        compile_error=judge_result.compile_error[:2048],
-        error_message=judge_result.error_message[:1024],
-    )
+    submission.verdict = judge_result.final_verdict
+    submission.tests_passed = judge_result.tests_passed
+    submission.tests_total = judge_result.tests_total
+    submission.execution_time_ms = judge_result.execution_time_ms
+    submission.memory_kb = judge_result.memory_kb
+    submission.compile_error = judge_result.compile_error[:2048]
+    submission.error_message = judge_result.error_message[:1024]
+    submission.save()
 
-    # 6. If Accepted — update Leitner progress (first Accepted only for base points)
     points_awarded = 0
     newly_unlocked = []
     if judge_result.final_verdict == 'ACCEPTED':
         points_awarded, newly_unlocked = _handle_accepted(user, problem, language, source_code)
 
-    # 7. Build safe response (NEVER include hidden test inputs/expected outputs)
     visible_results = []
     for tr in judge_result.test_results:
         entry = {
@@ -236,9 +268,6 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
             'verdict': tr.verdict,
             'execution_time_ms': tr.execution_time_ms,
         }
-        # Only add error message for visible tests (hidden tests: never)
-        # We don't know which index is hidden easily here, so we use the
-        # fact that test_results for hidden tests have no I/O appended.
         if tr.error_message:
             entry['error_message'] = tr.error_message
         visible_results.append(entry)
@@ -260,6 +289,24 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
             for a in newly_unlocked
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# Public: Synchronous submit_code wrapper (for backward compatibility & direct testing)
+# ---------------------------------------------------------------------------
+
+@transaction.atomic
+def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
+    """
+    Synchronous submit wrapper that creates a pending submission and immediately evaluates it.
+    Maintained for backward compatibility and synchronous unit test suites.
+    """
+    try:
+        submission = create_pending_submission(user, problem_id, language, source_code)
+    except (ValueError, Problem.DoesNotExist) as e:
+        return _error_response(str(e))
+
+    return execute_submission(str(submission.id))
 
 
 def _handle_accepted(user, problem, language: str, source_code: str) -> tuple[int, list]:
@@ -338,8 +385,8 @@ def get_submission_history(user, problem_id: str, limit: int = 20) -> list[dict]
 def get_submission_detail(user, submission_id: str) -> dict | None:
     """Return full submission detail for the owner only."""
     try:
-        s = Submission.objects.get(id=submission_id, user=user)
-    except Submission.DoesNotExist:
+        s = Submission.objects.select_related('problem').get(id=submission_id, user=user)
+    except (Submission.DoesNotExist, ValueError):
         return None
 
     return {
@@ -353,6 +400,7 @@ def get_submission_detail(user, submission_id: str) -> dict | None:
         'tests_total': s.tests_total,
         'execution_time_ms': s.execution_time_ms,
         'memory_kb': s.memory_kb,
+        'time_limit_ms': getattr(s.problem, 'time_limit_ms', 1000) or 1000,
         'compile_error': s.compile_error,
         'error_message': s.error_message,
         'created_at': s.created_at.isoformat(),

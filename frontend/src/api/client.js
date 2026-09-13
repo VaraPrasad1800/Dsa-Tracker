@@ -159,6 +159,7 @@ export const authApi = {
   resetPassword: (token, newPassword) =>
     api.post('/auth/reset-password/', { token, new_password: newPassword }),
   refreshToken: (refreshToken) => api.post('/auth/refresh-token/', { refresh_token: refreshToken }),
+  logout: (refreshToken) => api.post('/auth/logout/', { refresh_token: refreshToken }),
 };
 
 export const exportApi = {
@@ -176,6 +177,7 @@ export const judgeApi = {
   getTestCases: (problemId) => api.get(`/problems/${problemId}/test-cases/`),
   getSubmissions: (problemId) => api.get(`/problems/${problemId}/submissions/`),
   getSubmissionDetail: (id) => api.get(`/submissions/${id}/`),
+  getSubmissionStatus: (id) => api.get(`/submissions/${id}/status/`),
 };
 
 export const challengesApi = {

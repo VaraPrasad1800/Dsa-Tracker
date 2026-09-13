@@ -153,17 +153,51 @@ JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = int(os.environ.get('JWT_EXPIRATION_HOURS', '24'))
 JWT_REFRESH_EXPIRATION_HOURS = int(os.environ.get('JWT_REFRESH_EXPIRATION_HOURS', '168'))  # 7 days
 
+# ---------------------------------------------------------------------------
+# Logging Configuration
+# ---------------------------------------------------------------------------
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'tracker': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
 # Email configuration (SendGrid in production, console fallback for dev/test)
 # Auto-selects SendGrid when SENDGRID_API_KEY is set; otherwise uses the Django
 # console backend so local development and tests work without credentials.
-# To force a specific backend (e.g. SMTP), set EMAIL_BACKEND explicitly.
-SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '')
+# In production (DEBUG=False), ALWAYS requires SendGridBackend.
+SENDGRID_API_KEY = os.environ.get('SENDGRID_API_KEY', '').strip()
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND')
 if not EMAIL_BACKEND:
-    EMAIL_BACKEND = (
-        'tracker.email_backends.SendGridBackend' if SENDGRID_API_KEY
-        else 'django.core.mail.backends.console.EmailBackend'
-    )
+    if not DEBUG:
+        # In production, NEVER silently fall back to console backend
+        EMAIL_BACKEND = 'tracker.email_backends.SendGridBackend'
+    else:
+        EMAIL_BACKEND = (
+            'tracker.email_backends.SendGridBackend' if SENDGRID_API_KEY
+            else 'django.core.mail.backends.console.EmailBackend'
+        )
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'DSA Tracker <no-reply@dsatracker.app>')
 

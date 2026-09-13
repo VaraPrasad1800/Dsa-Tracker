@@ -30,6 +30,10 @@ def _deliver(subject, recipient_email, template_name, context, html_message=None
     html = html_message or render_to_string(template_name, context)
     text = text_message or f'{subject}\n\nPlease open this message in an HTML-capable client.'
 
+    backend_name = getattr(settings, 'EMAIL_BACKEND', 'unknown')
+    logger.info("[EMAIL DEBUG] email service called: subject=%r, recipient=%r", subject, recipient)
+    logger.info("[EMAIL DEBUG] backend selected: %s", backend_name)
+
     try:
         sent = mail.send_mail(
             subject=subject,
@@ -40,12 +44,12 @@ def _deliver(subject, recipient_email, template_name, context, html_message=None
             fail_silently=False,
         )
         if sent:
-            logger.info('Sent "%s" to %s', subject, recipient)
+            logger.info('[EMAIL DEBUG] mail.send_mail succeeded (sent=%d) to %s', sent, recipient)
         else:
-            logger.warning('Email to %s returned send_mail()=0; backend may be misconfigured.', recipient)
+            logger.warning('[EMAIL DEBUG] mail.send_mail returned 0 for %s; check backend configuration.', recipient)
         return sent
-    except Exception:
-        logger.exception('Failed to send email "%s" to %s', subject, recipient)
+    except Exception as exc:
+        logger.error('[EMAIL DEBUG] SendGrid/mail send exception for "%s" to %s: %s', subject, recipient, exc, exc_info=True)
         return 0
 
 

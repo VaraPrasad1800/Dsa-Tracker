@@ -87,3 +87,48 @@ class SendGridBackendClientTests(SimpleTestCase):
             # fail_silently=True → returns 0, no exception
             sent = backend.send_messages([message])
             self.assertEqual(sent, 0)
+
+
+class ResendVerificationViewStatusTests(SimpleTestCase):
+    """Verifies that ResendVerificationView accurately reflects email delivery success/failure."""
+
+    @patch('tracker.views.User.objects.get')
+    @patch('tracker.views.get_or_create_profile')
+    @patch('tracker.views.send_verification_email')
+    def test_resend_verification_failure_returns_502(self, mock_send, mock_profile, mock_user_get):
+        from rest_framework.test import APIRequestFactory
+        from tracker.views import ResendVerificationView
+
+        mock_user = mock_user_get.return_value
+        profile = mock_profile.return_value
+        profile.is_email_verified = False
+        mock_send.return_value = 0  # failure
+
+        factory = APIRequestFactory()
+        request = factory.post('/api/auth/resend-verification/', {'email': 'test@example.com'}, format='json')
+        view = ResendVerificationView.as_view()
+        response = view(request)
+
+        self.assertEqual(response.status_code, 502)
+        self.assertFalse(response.data['verification_email_sent'])
+        self.assertIn('Failed to send verification email', response.data['error'])
+
+    @patch('tracker.views.User.objects.get')
+    @patch('tracker.views.get_or_create_profile')
+    @patch('tracker.views.send_verification_email')
+    def test_resend_verification_success_returns_200(self, mock_send, mock_profile, mock_user_get):
+        from rest_framework.test import APIRequestFactory
+        from tracker.views import ResendVerificationView
+
+        mock_user = mock_user_get.return_value
+        profile = mock_profile.return_value
+        profile.is_email_verified = False
+        mock_send.return_value = 1  # success
+
+        factory = APIRequestFactory()
+        request = factory.post('/api/auth/resend-verification/', {'email': 'test@example.com'}, format='json')
+        view = ResendVerificationView.as_view()
+        response = view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['verification_email_sent'])

@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
@@ -13,6 +14,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
 from rest_framework.pagination import PageNumberPagination
 from django.core.exceptions import ValidationError as DjangoValidationError
+
+logger = logging.getLogger(__name__)
 
 from tracker.models import (
     Tag, Company, Problem, UserProblemProgress, ReviewHistory,
@@ -889,9 +892,13 @@ class RegisterView(APIView):
 
         # Send verification email (SendGrid in prod, console fallback in dev)
         sent = send_verification_email(user, token)
+        if not sent:
+            logger.warning("[EMAIL DEBUG] Verification email could not be sent on registration for user=%s (%s)", user.username, user.email)
+        else:
+            logger.info("[EMAIL DEBUG] Verification email sent successfully on registration for user=%s (%s)", user.username, user.email)
 
         return Response({
-            'message': 'Account created. Please check your email to verify your account.',
+            'message': 'Account created. Please check your email to verify your account.' if sent else 'Account created, but verification email failed to send. Please use Resend Verification.',
             'verification_email_sent': bool(sent),
             'user': {
                 'id': user.id,
@@ -1028,16 +1035,19 @@ class ResendVerificationView(APIView):
 
     def post(self, request):
         email = (request.data.get('email') or '').strip().lower()
+        logger.info("[EMAIL DEBUG] resend endpoint reached for email=%s", email)
         if not email:
             return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
             # Always succeed to avoid email enumeration
+            logger.info("[EMAIL DEBUG] resend requested for non-existent email=%s; pretending success", email)
             return Response({'message': 'If an account with that email exists, a verification email has been sent.'})
 
         profile = get_or_create_profile(user)
         if profile.is_email_verified:
+            logger.info("[EMAIL DEBUG] resend requested for already verified email=%s", email)
             return Response({'message': 'Email already verified. Please log in.'})
 
         token = generate_auth_token()
@@ -1045,7 +1055,17 @@ class ResendVerificationView(APIView):
         profile.email_verification_sent_at = timezone.now()
         profile.save()
         sent = send_verification_email(user, token)
-        return Response({'message': 'Verification email sent.', 'verification_email_sent': bool(sent)})
+        if not sent:
+            logger.error("[EMAIL DEBUG] send_verification_email failed for email=%s", email)
+            return Response(
+                {
+                    'error': 'Failed to send verification email. Please check email service configuration.',
+                    'verification_email_sent': False,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+        logger.info("[EMAIL DEBUG] send_verification_email succeeded for email=%s", email)
+        return Response({'message': 'Verification email sent.', 'verification_email_sent': True})
 
 
 class ForgotPasswordView(APIView):
@@ -1058,6 +1078,7 @@ class ForgotPasswordView(APIView):
 
     def post(self, request):
         email = (request.data.get('email') or '').strip().lower()
+        logger.info("[EMAIL DEBUG] forgot-password endpoint reached for email=%s", email)
         if not email:
             return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
         # Always succeed to avoid email enumeration
@@ -1066,6 +1087,7 @@ class ForgotPasswordView(APIView):
         try:
             user = User.objects.get(email__iexact=email)
         except User.DoesNotExist:
+            logger.info("[EMAIL DEBUG] forgot-password requested for non-existent email=%s; pretending success", email)
             return Response(message)
 
         profile = get_or_create_profile(user)
@@ -1074,7 +1096,11 @@ class ForgotPasswordView(APIView):
         profile.password_reset_sent_at = timezone.now()
         profile.save()
 
-        send_password_reset_email(user, token)
+        sent = send_password_reset_email(user, token)
+        if not sent:
+            logger.error("[EMAIL DEBUG] send_password_reset_email failed for email=%s", email)
+        else:
+            logger.info("[EMAIL DEBUG] send_password_reset_email succeeded for email=%s", email)
         return Response(message)
 
 

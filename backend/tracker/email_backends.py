@@ -36,13 +36,20 @@ class SendGridBackend(BaseEmailBackend):
         is_debug = getattr(settings, 'DEBUG', True)
         if not self.api_key:
             if not is_debug:
+                logger.error("[EMAIL DEBUG] SendGrid API key configured: false (in production)")
                 raise ImproperlyConfigured(
                     "SENDGRID_API_KEY is missing or empty. "
                     "Cannot send emails in production without a configured SendGrid API key."
                 )
+            logger.info("[EMAIL DEBUG] SendGrid API key configured: false (dev fallback to console)")
             self._fallback = ConsoleEmailBackend(fail_silently=fail_silently)
         else:
             self._fallback = None
+            logger.info(
+                "[EMAIL DEBUG] SendGrid backend initialized (configured=true, key_length=%d, from_email=%r)",
+                len(self.api_key),
+                self.from_email,
+            )
             # Lazy import to avoid import-time dependency when key is absent
             from sendgrid import SendGridAPIClient
             from sendgrid.helpers.mail import Mail, Email, Cc, Bcc
@@ -62,7 +69,7 @@ class SendGridBackend(BaseEmailBackend):
             return 0
 
         if self._fallback is not None:
-            # No SendGrid key in debug/dev mode → delegate to console
+            logger.info("[EMAIL DEBUG] Delegating to console backend fallback")
             return self._fallback.send_messages(email_messages)
 
         sent_count = 0
@@ -71,7 +78,7 @@ class SendGridBackend(BaseEmailBackend):
                 self._send_single(message)
                 sent_count += 1
             except Exception as e:
-                logger.exception('Failed to send email to %s: %s', message.to, e)
+                logger.exception('[EMAIL DEBUG] Failed to send email to %s: %s', message.to, e)
                 if not self.fail_silently:
                     raise
         return sent_count
@@ -80,8 +87,10 @@ class SendGridBackend(BaseEmailBackend):
         # 1. Sanitize recipient list
         to_emails = [sanitize_address(addr, message.encoding) for addr in message.to]
         if not to_emails:
-            logger.warning('Email message has no recipients; skipping.')
+            logger.warning('[EMAIL DEBUG] Email message has no recipients; skipping.')
             return
+
+        logger.info("[EMAIL DEBUG] SendGrid backend invoked for subject=%r to=%r", message.subject, to_emails)
 
         # 2. Parse from_email into display name and clean address for SendGrid v3
         raw_from = message.from_email or self.from_email
@@ -99,8 +108,6 @@ class SendGridBackend(BaseEmailBackend):
                 break
 
         # 4. Build modern SendGrid v6 Mail object
-        # SendGrid 6.x signature:
-        # Mail(from_email=..., to_emails=..., subject=..., plain_text_content=..., html_content=...)
         mail_obj = self._Mail(
             from_email=from_email_obj,
             to_emails=to_emails,
@@ -118,7 +125,8 @@ class SendGridBackend(BaseEmailBackend):
                 mail_obj.add_bcc(self._Bcc(sanitize_address(addr, message.encoding)))
 
         # 6. Send via SendGrid API
+        logger.info("[EMAIL DEBUG] attempting SendGrid send")
         response = self._sg.client.mail.send.post(request_body=mail_obj.get())
+        logger.info("[EMAIL DEBUG] SendGrid response status: %s", response.status_code)
         if response.status_code >= 400:
             raise RuntimeError(f'SendGrid API error {response.status_code}: {response.body}')
-        logger.info('Sent email "%s" to %s via SendGrid (status %s)', message.subject, to_emails, response.status_code)

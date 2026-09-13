@@ -941,28 +941,26 @@ Set these variables in `backend/.env` (or Render service environment settings):
 ## 📌 Current Project Status
 
 ### ✅ Implemented & Deployed
-- [x] Full JWT Authentication with email verification, password reset, and SendGrid v3 SDK integration.
-- [x] Problem bank with multi-attribute filtering (Difficulty, Tag, Company, Status, Search).
-- [x] Complete standalone program Online Judge for Python 3, C++, C, and Java.
-- [x] Resizable 3-pane code editor layout with Monaco Editor and persistent split layout settings.
-- [x] Spaced repetition Leitner 5-box progression engine with automated scheduling and transition history.
-- [x] "Today's Review" distraction-free flashcard interface.
-- [x] 52-week activity heatmap with Redis caching (6h TTL).
-- [x] Dynamic Weak Focus Areas with modal editor (up to 5 tags) and targeted practice routing.
-- [x] Company question catalog with real-time in-memory search and backend query filtering.
-- [x] Viewport-aware portal-based Notification Center with screen collision avoidance.
-- [x] Rule-based deterministic Study Plan Generator with timeline cards and heuristic reasoning.
-- [x] Timed challenges, server-authoritative points accounting, and milestone achievements.
-- [x] Mock interview simulation mode with timer and scoring.
-- [x] Scraped editorial solutions (`leetcode.ca`) with two-tier database caching.
-- [x] Data export in JSON, CSV, and Markdown formats.
-- [x] Production deployment on Vercel (Frontend) and Render (Backend Docker with compiler toolchains).
-
-### ⏳ In Progress
-- **Online Judge Single-Compilation Session Architecture** — Refactoring the judge evaluation pipeline to compile C/C++/Java source code once per multi-test submission session, persisting the executable across test cases to eliminate redundant compiler invocations and drastically reduce evaluation latency.
+- [x] **Full JWT Authentication & Revocation** — Token rotation, `RefreshToken` database verification, unique UUID `jti` claims, 1-hour access token TTL, and single-use email verification/password reset with SendGrid v3 SDK integration.
+- [x] **Asynchronous Online Judge** — Celery background queue execution (`run_submission_task`), `202 Accepted` response pattern, polling status endpoint (`/api/submissions/<id>/status/`), and animated evaluation feedback in UI.
+- [x] **Judge Endpoint Rate Limiting & Concurrency Guards** — Dedicated throttles for `RunCodeView` (10/min) and `SubmitCodeView` (5/min), global rate limiting (120/min), and `409 Conflict` prevention against duplicate active submissions.
+- [x] **Single-Compilation Batch Execution Pipeline** — `ExecutionSession` architecture compiling C/C++/Java source code once per multi-test session, achieving >25x speedup and sub-second evaluation.
+- [x] **Problem Bank & Fast Search** — Multi-attribute filtering (Difficulty, Tag, Company, Status, Search) and lightweight `/api/problems/search/` endpoint with 250ms debouncing.
+- [x] **Resizable 3-Pane Code Editor** — Monaco Editor with persistent split layout settings, theme toggles, and language templates.
+- [x] **Spaced Repetition (Leitner 5-Box)** — Automated scheduling, transition history, and "Today's Review" distraction-free flashcard interface.
+- [x] **Analytics & Behavioral Dashboard** — 52-week activity heatmap with Redis caching (6h TTL), topic mastery breakdown, and streaks.
+- [x] **Weak Focus Areas** — Dynamic modal editor (up to 5 tags) and targeted practice routing based on accuracy heuristics.
+- [x] **Company Question Catalog** — Frequency tracking with real-time in-memory search and backend query filtering.
+- [x] **Viewport-Aware Notifications** — Screen-collision avoidance, portal rendering, and read status management.
+- [x] **Study Plan Generator** — Rule-based deterministic engine with timeline cards and heuristic reasoning.
+- [x] **Automated CI/CD Pipeline** — GitHub Actions workflow testing PostgreSQL 15, Redis 7, flake8, manage.py test, npm test (Vitest), and production build.
+- [x] **Interactive API Documentation** — OpenAPI 3.0 schema generation, Swagger UI (`/api/docs/`), and Redoc (`/api/redoc/`) via `drf-spectacular`.
+- [x] **Frontend Automated Test Suite** — Vitest + React Testing Library + JSDOM verifying authentication flows, Leitner progression, and judge evaluation.
+- [x] **Observability & Request Correlation** — Sentry integration (backend & frontend) and `RequestIDMiddleware` attaching UUID4 `X-Request-ID` headers to all responses and log records.
+- [x] **Production Security Hardening** — HSTS preload (1 year), SSL redirection, secure session/CSRF cookies, XSS filtering, content-type nosniff, and frame deny headers.
+- [x] **Production Deployment** — Vercel (Frontend SPA) and Render (Backend Docker with compiler toolchains, PostgreSQL, and Redis).
 
 ### ⚠️ Known Limitations
-- **Per-Test Compilation Overhead** — In the current production branch, compiled languages (C, C++, Java) invoke the compiler binary per test case, resulting in ~10–15 second submission turnaround times on multi-test suites (compared to <1–2 seconds for interpreted Python).
 - **Subprocess Isolation in Non-Docker Environments** — When running locally outside of Docker, sandbox security relies on temporary directory isolation and environment scrubbing; OS-level network isolation is only enforced when deployed in Docker/containerized environments.
 - **Memory Limiting on Windows** — Posix `setrlimit` is unavailable on Windows hosts; memory limit enforcement in Windows local development falls back to post-run sampling via `psutil`.
 

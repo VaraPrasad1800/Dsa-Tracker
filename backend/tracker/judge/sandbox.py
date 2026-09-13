@@ -127,11 +127,20 @@ def _log_compiler_discovery(cmd: list, step: str) -> None:
     """
     exe = cmd[0] if cmd else "<empty>"
     resolved = shutil.which(exe, path=os.environ.get("PATH", ""))
+    if resolved is None:
+        if os.path.isfile(exe):
+            resolved = exe
+        elif os.name == 'nt':
+            for ext in ('.exe', '.bat', '.cmd'):
+                if os.path.isfile(exe + ext):
+                    resolved = exe + ext
+                    break
+
     logger.debug(
         "[judge][%s] executable=%r  resolved=%r  PATH=%s",
         step, exe, resolved, os.environ.get("PATH", "<unset>"),
     )
-    if resolved is None:
+    if resolved is None and not os.path.isabs(exe):
         logger.error(
             "[judge][%s] TOOL NOT FOUND: %r is not on PATH=%s — "
             "this is an infrastructure error, not a user code error. "
@@ -275,10 +284,14 @@ def execute(
                 )
 
         # 3. Build run command
+        binary_to_run = binary_path
+        if os.name == 'nt' and os.path.exists(binary_path + '.exe'):
+            binary_to_run = binary_path + '.exe'
+
         run_cmd_template = language_config["run_cmd"]
         run_cmd = [
             part.replace("{source}", source_path)
-                .replace("{binary}", binary_path)
+                .replace("{binary}", binary_to_run)
                 .replace("{workdir}", workdir)
                 .replace("{main_class}", java_class)
             for part in run_cmd_template
@@ -339,3 +352,175 @@ def execute(
             shutil.rmtree(workdir, ignore_errors=True)
         except Exception:
             pass
+
+
+class BatchExecutionSandbox:
+    """
+    Sandboxed execution session for a single multi-test judge operation.
+    Compiles source code ONCE on the first test case and re-uses the compiled binary
+    for subsequent test cases in the same submission.
+    Guarantees:
+      - Single compilation per submission for compiled languages (C++, C, Java)
+      - Zero cross-user / cross-submission reuse (isolated tempdir per instance)
+      - Complete cleanup of executables and temporary files when done
+      - Intact per-test execution resource limits (timeout, memory, stdin size)
+    """
+
+    def __init__(
+        self,
+        language_config: dict,
+        time_limit_seconds: float = 5.0,
+        memory_limit_mb: int = 128,
+    ):
+        self.language_config = language_config
+        self.time_limit_seconds = float(time_limit_seconds)
+        self.memory_limit_mb = int(memory_limit_mb)
+        self.workdir = None
+        self.is_compiled = False
+        self.compile_result = None
+        self.source_path = None
+        self.binary_to_run = None
+        self.java_class = "Main"
+        self.cleaned_up = False
+
+    def cleanup(self):
+        if self.cleaned_up:
+            return
+        self.cleaned_up = True
+        if self.workdir and os.path.exists(self.workdir):
+            try:
+                shutil.rmtree(self.workdir, ignore_errors=True)
+            except Exception:
+                pass
+            self.workdir = None
+
+    def __del__(self):
+        self.cleanup()
+
+    def __call__(self, source_code: str, stdin: str = "") -> ExecutionResult:
+        compile_cmd_template = self.language_config.get("compile_cmd")
+
+        # Interpreted languages (e.g. Python): delegate directly to execute
+        if not compile_cmd_template:
+            return execute(
+                language_config=self.language_config,
+                source_code=source_code,
+                stdin=stdin,
+                time_limit_seconds=self.time_limit_seconds,
+                memory_limit_mb=self.memory_limit_mb,
+            )
+
+        # Compiled languages: compile once on first call
+        if not self.is_compiled:
+            size_error = _check_sizes(source_code, stdin)
+            if size_error:
+                return ExecutionResult(status="SYSTEM_ERROR", stderr=size_error)
+
+            self.workdir = tempfile.mkdtemp(prefix="dsa_batch_")
+            ext = self.language_config["file_extension"]
+            self.java_class = "Main"
+            if ext == "java":
+                import re
+                m = re.search(r'public\s+class\s+([A-Za-z0-9_]+)', source_code)
+                if not m:
+                    m = re.search(r'class\s+([A-Za-z0-9_]+)', source_code)
+                if m:
+                    self.java_class = m.group(1)
+                filename = f"{self.java_class}.java"
+            else:
+                filename = f"solution.{ext}"
+
+            self.source_path = os.path.join(self.workdir, filename)
+            binary_path = os.path.join(self.workdir, "solution_bin")
+
+            with open(self.source_path, "w", encoding="utf-8") as f:
+                f.write(source_code)
+
+            compile_cmd = [
+                part.replace("{source}", self.source_path).replace("{binary}", binary_path)
+                for part in compile_cmd_template
+            ]
+            stdout, stderr, returncode, elapsed_ms, _ = _run_subprocess(
+                compile_cmd, "", 30.0, self.workdir, step="compile"
+            )
+            if returncode != 0:
+                self.compile_result = ExecutionResult(
+                    status="COMPILE_ERROR",
+                    compile_error=(stderr or stdout)[:4096],
+                    execution_time_ms=elapsed_ms,
+                )
+                self.is_compiled = True
+                return self.compile_result
+
+            self.binary_to_run = binary_path
+            if os.name == 'nt' and os.path.exists(binary_path + '.exe'):
+                self.binary_to_run = binary_path + '.exe'
+
+            self.is_compiled = True
+
+        # If earlier compilation failed, return the cached compile error immediately
+        if self.compile_result is not None:
+            return self.compile_result
+
+        # Validate stdin size for this test
+        size_error = _check_sizes("", stdin)
+        if size_error:
+            return ExecutionResult(status="SYSTEM_ERROR", stderr=size_error)
+
+        ext = self.language_config["file_extension"]
+        run_cmd_template = self.language_config["run_cmd"]
+        run_cmd = [
+            part.replace("{source}", self.source_path)
+                .replace("{binary}", self.binary_to_run)
+                .replace("{workdir}", self.workdir)
+                .replace("{main_class}", self.java_class)
+            for part in run_cmd_template
+        ]
+        if ext == "java" and self.java_class != "Main":
+            run_cmd = [part if part != "Main" else self.java_class for part in run_cmd]
+
+        stdout, stderr, returncode, elapsed_ms, memory_kb = _run_subprocess(
+            run_cmd, stdin, self.time_limit_seconds, self.workdir
+        )
+
+        if returncode == -9 or elapsed_ms >= int(self.time_limit_seconds * 1000 * 0.99):
+            return ExecutionResult(
+                status="TLE",
+                stdout=stdout[:2048],
+                stderr=stderr[:512],
+                execution_time_ms=elapsed_ms,
+                memory_kb=memory_kb,
+            )
+
+        if memory_kb > self.memory_limit_mb * 1024:
+            return ExecutionResult(
+                status="MLE",
+                stdout=stdout[:2048],
+                stderr=stderr[:512],
+                execution_time_ms=elapsed_ms,
+                memory_kb=memory_kb,
+            )
+
+        if returncode != 0:
+            status_str = "RUNTIME_ERROR"
+            compile_err = ""
+            if "SyntaxError:" in stderr or "IndentationError:" in stderr:
+                status_str = "COMPILE_ERROR"
+                compile_err = stderr[:4096]
+            return ExecutionResult(
+                status=status_str,
+                stdout=stdout[:2048],
+                stderr=stderr[:2048],
+                compile_error=compile_err,
+                execution_time_ms=elapsed_ms,
+                memory_kb=memory_kb,
+            )
+
+        return ExecutionResult(
+            status="OK",
+            stdout=stdout,
+            stderr=stderr[:512],
+            execution_time_ms=elapsed_ms,
+            memory_kb=memory_kb,
+        )
+

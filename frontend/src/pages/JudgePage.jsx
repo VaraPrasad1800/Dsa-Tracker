@@ -364,6 +364,10 @@ export default function JudgePage({ initialProblemId }) {
           queryClient.invalidateQueries({ queryKey: ['points'] });
           queryClient.invalidateQueries({ queryKey: ['achievements'] });
           queryClient.invalidateQueries({ queryKey: ['user_progress_stats'] });
+          queryClient.invalidateQueries({ queryKey: ['interview_sessions'] });
+          queryClient.invalidateQueries({ queryKey: ['problems'] });
+          queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['due-today-count'] });
 
           if (res.data.verdict === 'ACCEPTED') {
             toast.success('Accepted! Problem solved successfully.', { icon: '🎉' });
@@ -393,6 +397,10 @@ export default function JudgePage({ initialProblemId }) {
         queryClient.invalidateQueries({ queryKey: ['points'] });
         queryClient.invalidateQueries({ queryKey: ['achievements'] });
         queryClient.invalidateQueries({ queryKey: ['user_progress_stats'] });
+        queryClient.invalidateQueries({ queryKey: ['interview_sessions'] });
+        queryClient.invalidateQueries({ queryKey: ['problems'] });
+        queryClient.invalidateQueries({ queryKey: ['user-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['due-today-count'] });
 
         if (res.data.verdict === 'ACCEPTED') {
           toast.success(`Accepted! +${res.data.points_awarded || 0} pts`, { icon: '🎉' });

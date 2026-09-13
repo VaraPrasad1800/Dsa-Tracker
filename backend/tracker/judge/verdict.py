@@ -321,69 +321,76 @@ def run_against_test_cases(
     max_memory_kb = 0
     compile_error = ""
 
-    for input_text, expected_output, is_hidden, idx in test_cases:
-        result = executor_fn(source_code, input_text)
+    try:
+        for input_text, expected_output, is_hidden, idx in test_cases:
+            result = executor_fn(source_code, input_text)
 
-        max_time_ms = max(max_time_ms, result.execution_time_ms)
-        total_time_ms += result.execution_time_ms
-        max_memory_kb = max(max_memory_kb, result.memory_kb)
+            max_time_ms = max(max_time_ms, result.execution_time_ms)
+            total_time_ms += result.execution_time_ms
+            max_memory_kb = max(max_memory_kb, result.memory_kb)
 
-        if result.status == "COMPILE_ERROR":
-            # Compilation failed — no point running more tests
-            compile_error = result.compile_error
-            return JudgeResult(
-                final_verdict="COMPILE_ERROR",
-                tests_passed=0,
-                tests_total=len(test_cases),
-                execution_time_ms=max_time_ms,
-                memory_kb=max_memory_kb,
-                compile_error=compile_error[:2048],
-            )
+            if result.status == "COMPILE_ERROR":
+                # Compilation failed — no point running more tests
+                compile_error = result.compile_error
+                return JudgeResult(
+                    final_verdict="COMPILE_ERROR",
+                    tests_passed=0,
+                    tests_total=len(test_cases),
+                    execution_time_ms=max_time_ms,
+                    memory_kb=max_memory_kb,
+                    compile_error=compile_error[:2048],
+                )
 
-        sandbox_verdict = _sandbox_status_to_verdict(result.status)
+            sandbox_verdict = _sandbox_status_to_verdict(result.status)
 
-        if sandbox_verdict == "ACCEPTED":
-            # Compare output using the problem's configured strategy
-            if _outputs_match(result.stdout, expected_output, strategy=output_checker):
-                verdict = "ACCEPTED"
-                tests_passed += 1
+            if sandbox_verdict == "ACCEPTED":
+                # Compare output using the problem's configured strategy
+                if _outputs_match(result.stdout, expected_output, strategy=output_checker):
+                    verdict = "ACCEPTED"
+                    tests_passed += 1
+                else:
+                    verdict = "WRONG_ANSWER"
             else:
-                verdict = "WRONG_ANSWER"
-        else:
-            verdict = sandbox_verdict
+                verdict = sandbox_verdict
 
-        verdicts.append(verdict)
+            verdicts.append(verdict)
 
-        # Safe per-test result
-        tc_result = TestCaseResult(
-            test_index=idx,
-            passed=(verdict == "ACCEPTED"),
-            verdict=verdict,
-            execution_time_ms=result.execution_time_ms,
-            memory_kb=result.memory_kb,
+            # Safe per-test result
+            tc_result = TestCaseResult(
+                test_index=idx,
+                passed=(verdict == "ACCEPTED"),
+                verdict=verdict,
+                execution_time_ms=result.execution_time_ms,
+                memory_kb=result.memory_kb,
+            )
+            if verdict != "ACCEPTED" and not is_hidden:
+                # Visible test: safe to show limited stderr
+                tc_result.error_message = result.stderr[:256] if result.stderr else ""
+            # Hidden tests: no details ever
+            if not is_hidden and return_visible_details:
+                test_results.append(tc_result)
+            elif is_hidden:
+                # Append minimal info (no I/O)
+                test_results.append(tc_result)
+
+            # Check cumulative submission timeout across tests
+            if cumulative_time_limit_ms and total_time_ms > cumulative_time_limit_ms:
+                verdicts.append("TLE")
+                break
+
+        final_verdict = _pick_worst_verdict(verdicts)
+
+        return JudgeResult(
+            final_verdict=final_verdict,
+            tests_passed=tests_passed,
+            tests_total=len(test_cases),
+            execution_time_ms=max_time_ms,
+            memory_kb=max_memory_kb,
+            test_results=test_results,
         )
-        if verdict != "ACCEPTED" and not is_hidden:
-            # Visible test: safe to show limited stderr
-            tc_result.error_message = result.stderr[:256] if result.stderr else ""
-        # Hidden tests: no details ever
-        if not is_hidden and return_visible_details:
-            test_results.append(tc_result)
-        elif is_hidden:
-            # Append minimal info (no I/O)
-            test_results.append(tc_result)
-
-        # Check cumulative submission timeout across tests
-        if cumulative_time_limit_ms and total_time_ms > cumulative_time_limit_ms:
-            verdicts.append("TLE")
-            break
-
-    final_verdict = _pick_worst_verdict(verdicts)
-
-    return JudgeResult(
-        final_verdict=final_verdict,
-        tests_passed=tests_passed,
-        tests_total=len(test_cases),
-        execution_time_ms=max_time_ms,
-        memory_kb=max_memory_kb,
-        test_results=test_results,
-    )
+    finally:
+        if hasattr(executor_fn, 'cleanup'):
+            try:
+                executor_fn.cleanup()
+            except Exception:
+                pass

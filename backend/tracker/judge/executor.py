@@ -13,7 +13,7 @@ from functools import partial
 from typing import Optional
 
 from tracker.judge.languages import get_language_config, SUPPORTED_LANGUAGES
-from tracker.judge.sandbox import execute, ExecutionResult
+from tracker.judge.sandbox import execute, ExecutionResult, BatchExecutionSandbox
 
 
 def _make_executor(language: str, time_limit: float, memory_limit_mb: int):
@@ -62,8 +62,10 @@ def get_test_executor(
     """
     Return a (source_code, stdin) -> ExecutionResult callable for use
     by verdict.run_against_test_cases().
+    For compiled languages (C++, C, Java), compiles once per judge operation.
     """
     cfg = get_language_config(language)
     tl = time_limit_seconds or cfg["timeout_seconds"]
     ml = memory_limit_mb or cfg["memory_limit_mb"]
-    return _make_executor(language, tl, ml)
+    return BatchExecutionSandbox(cfg, tl, ml)
+

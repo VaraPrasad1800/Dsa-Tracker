@@ -1700,13 +1700,19 @@ class SubmitCodeView(APIView):
         except Problem.DoesNotExist:
             return Response({'error': 'Problem not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Dispatch async task (Celery when broker is available; background thread fallback otherwise)
+        # Dispatch async task (Celery when broker is reachable; background thread fallback otherwise)
+        dispatched = False
         try:
-            run_submission_task.delay(str(submission.id))
+            from tracker.services.judge_service import is_celery_broker_reachable
+            if is_celery_broker_reachable():
+                run_submission_task.delay(str(submission.id))
+                dispatched = True
         except Exception as exc:
             import logging
             logger = logging.getLogger('tracker')
             logger.warning("Celery dispatch failed (%s); evaluating via background thread.", exc)
+
+        if not dispatched:
             import threading
             from tracker.services.judge_service import execute_submission
             threading.Thread(target=execute_submission, args=(str(submission.id),), daemon=True).start()
@@ -2059,6 +2065,21 @@ class InterviewSessionEndView(APIView):
         session.ended_at = now
         session.status = 'COMPLETED'
 
+        # Ensure any problems canonically solved during the session timeframe are marked solved
+        from tracker.models import Submission
+        for ip in session.interview_problems.filter(solved=False):
+            accepted_sub = Submission.objects.filter(
+                user=request.user,
+                problem=ip.problem,
+                verdict='ACCEPTED',
+                created_at__gte=session.started_at,
+                created_at__lte=now,
+            ).order_by('-created_at').first()
+            if accepted_sub:
+                ip.solved = True
+                ip.submission = accepted_sub
+                ip.save(update_fields=['solved', 'submission'])
+
         # Tally solved problems
         solved = InterviewProblem.objects.filter(session=session, solved=True).count()
         session.problems_solved = solved
@@ -2127,16 +2148,43 @@ class InterviewProblemSolveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, session_pk, problem_pk):
+        from tracker.models import Submission
         try:
             session = InterviewSession.objects.get(id=session_pk, user=request.user, status='ACTIVE')
             ip = InterviewProblem.objects.get(session=session, problem_id=problem_pk)
         except (InterviewSession.DoesNotExist, InterviewProblem.DoesNotExist):
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+        now = timezone.now()
+        accepted_sub = Submission.objects.filter(
+            user=request.user,
+            problem=ip.problem,
+            verdict='ACCEPTED',
+            created_at__gte=session.started_at,
+            created_at__lte=now,
+        ).order_by('-created_at').first()
+
+        already_counted = (
+            accepted_sub is not None
+            and ip.submission_id == accepted_sub.id
+            and ip.solved
+        )
+
         ip.solved = True
-        ip.attempts += 1
-        ip.save()
-        return Response({'solved': True})
+        if accepted_sub:
+            ip.submission = accepted_sub
+        if not already_counted:
+            ip.attempts += 1
+
+        update_fields = ['solved', 'attempts']
+        if accepted_sub:
+            update_fields.append('submission')
+        ip.save(update_fields=update_fields)
+
+        session.problems_solved = session.interview_problems.filter(solved=True).count()
+        session.save(update_fields=['problems_solved'])
+
+        return Response({'solved': True, 'problems_solved': session.problems_solved})
 
 
 # ============================================================================

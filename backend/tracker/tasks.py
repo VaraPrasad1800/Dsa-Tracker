@@ -92,7 +92,7 @@ def seed_achievements():
     return 'Achievements seeded'
 
 
-@shared_task(name='tracker.tasks.run_submission_task', queue='judge')
+@shared_task(name='tracker.tasks.run_submission_task', queue='judge', ignore_result=True)
 def run_submission_task(submission_id):
     """
     Asynchronously executes an Online Judge submission.

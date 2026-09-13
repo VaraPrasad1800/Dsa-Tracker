@@ -392,6 +392,7 @@ class InterviewProblemSerializer(serializers.ModelSerializer):
     problem_title = serializers.SerializerMethodField()
     problem_difficulty = serializers.SerializerMethodField()
     question_number = serializers.IntegerField(source='problem.question_number', read_only=True)
+    solved = serializers.SerializerMethodField()
 
     class Meta:
         model = InterviewProblem
@@ -402,6 +403,29 @@ class InterviewProblemSerializer(serializers.ModelSerializer):
 
     def get_problem_difficulty(self, obj):
         return obj.problem.difficulty
+
+    def get_solved(self, obj):
+        if obj.solved:
+            return True
+        if hasattr(obj, 'session') and obj.session:
+            from tracker.models import Submission
+            qs = Submission.objects.filter(
+                user=obj.session.user,
+                problem=obj.problem,
+                verdict='ACCEPTED',
+                created_at__gte=obj.session.started_at,
+            )
+            if obj.session.ended_at:
+                qs = qs.filter(created_at__lte=obj.session.ended_at)
+            accepted_sub = qs.order_by('-created_at').first()
+            if accepted_sub:
+                obj.solved = True
+                obj.submission = accepted_sub
+                if obj.attempts == 0:
+                    obj.attempts = 1
+                obj.save(update_fields=['solved', 'submission', 'attempts'])
+                return True
+        return False
 
 
 class InterviewSessionSerializer(serializers.ModelSerializer):

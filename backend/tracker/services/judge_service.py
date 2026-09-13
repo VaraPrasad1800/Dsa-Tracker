@@ -40,13 +40,23 @@ logger = logging.getLogger(__name__)
 
 def _prepare_executable_code(problem: Problem | None, language: str, source_code: str) -> str:
     """
-    Return executable code. If user code contains class Solution or problem execution_mode is FUNCTION,
-    and a template has harness_code, append harness_code to user source code.
-    Otherwise return as-is for complete standalone execution.
+    If the user submitted a complete program, return as-is.
+    If the user submitted a class Solution without main/driver, and a harness is configured,
+    attach the harness as a fallback driver.
     """
-    if problem and ('class Solution' in source_code or getattr(problem, 'execution_mode', '') == 'FUNCTION'):
+    if language == 'python':
+        if 'if __name__' in source_code or 'sys.stdin.read' in source_code or '__main__' in source_code or 'def main(' in source_code or 'def solve(' in source_code:
+            return source_code
+    elif language in ('cpp', 'c'):
+        if 'int main(' in source_code or 'void main(' in source_code or 'main(' in source_code:
+            return source_code
+    elif language == 'java':
+        if 'static void main(' in source_code:
+            return source_code
+
+    if problem:
         template = LanguageTemplate.objects.filter(problem=problem, language=language).first()
-        if template and template.harness_code:
+        if template and template.harness_code and template.harness_code.strip():
             return source_code + "\n\n" + template.harness_code
     return source_code
 
@@ -62,13 +72,6 @@ def get_language_template(problem_id: str, language: str) -> str:
             return tmpl.starter_code
         try:
             problem = Problem.objects.get(id=problem_id)
-            if not problem.is_judge_ready and problem.leetcode_id:
-                from tracker.services.problem_hydration_service import hydrate_problem_contract
-                hydrate_problem_contract(problem)
-                tmpl = LanguageTemplate.objects.filter(problem_id=problem_id, language=language).first()
-                if tmpl and tmpl.starter_code.strip():
-                    return tmpl.starter_code
-
             if not problem.is_judge_ready:
                 return (
                     f"// Online Judge configuration unavailable for #{problem.question_number} {problem.title}.\n"
@@ -81,6 +84,26 @@ def get_language_template(problem_id: str, language: str) -> str:
             pass
 
     return DEFAULT_STARTER_CODE.get(language, '')
+
+
+def is_celery_broker_reachable() -> bool:
+    """Quick non-blocking probe to verify Redis/broker is reachable before calling delay()."""
+    from django.conf import settings
+    if getattr(settings, 'IS_TESTING', False) or getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False):
+        return True
+    broker_url = getattr(settings, 'CELERY_BROKER_URL', '')
+    if not broker_url:
+        return False
+    try:
+        from urllib.parse import urlparse
+        import socket
+        parsed = urlparse(broker_url)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 6379
+        with socket.create_connection((host, port), timeout=0.15):
+            return True
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -231,20 +254,23 @@ def execute_submission(submission_id: str) -> dict:
     )
 
     executor_fn = get_test_executor(language, time_limit, memory_limit)
-
-    def _executor_wrapper(source, stdin):
-        return executor_fn(source, stdin)
-
     problem_checker = getattr(problem, 'output_checker', 'NORMALIZED_TEXT') or 'NORMALIZED_TEXT'
     executable_code = _prepare_executable_code(problem, language, source_code)
-    judge_result = run_against_test_cases(
-        executor_fn=_executor_wrapper,
-        test_cases=test_cases,
-        source_code=executable_code,
-        return_visible_details=True,
-        cumulative_time_limit_ms=timing_cfg.cumulative_time_limit_ms,
-        output_checker=problem_checker,
-    )
+    try:
+        judge_result = run_against_test_cases(
+            executor_fn=executor_fn,
+            test_cases=test_cases,
+            source_code=executable_code,
+            return_visible_details=True,
+            cumulative_time_limit_ms=timing_cfg.cumulative_time_limit_ms,
+            output_checker=problem_checker,
+        )
+    finally:
+        if hasattr(executor_fn, 'cleanup'):
+            try:
+                executor_fn.cleanup()
+            except Exception:
+                pass
 
     submission.verdict = judge_result.final_verdict
     submission.tests_passed = judge_result.tests_passed
@@ -258,7 +284,16 @@ def execute_submission(submission_id: str) -> dict:
     points_awarded = 0
     newly_unlocked = []
     if judge_result.final_verdict == 'ACCEPTED':
-        points_awarded, newly_unlocked = _handle_accepted(user, problem, language, source_code)
+        points_awarded, newly_unlocked = _handle_accepted(user, problem, language, source_code, submission=submission)
+    else:
+        # Record attempt on any active interview session containing this problem
+        from tracker.models import InterviewProblem
+        from django.db.models import F
+        InterviewProblem.objects.filter(
+            session__user=user,
+            session__status='ACTIVE',
+            problem=problem,
+        ).update(attempts=F('attempts') + 1)
 
     visible_results = []
     for tr in judge_result.test_results:
@@ -309,14 +344,16 @@ def submit_code(user, problem_id: str, language: str, source_code: str) -> dict:
     return execute_submission(str(submission.id))
 
 
-def _handle_accepted(user, problem, language: str, source_code: str) -> tuple[int, list]:
+def _handle_accepted(user, problem, language: str, source_code: str, submission=None) -> tuple[int, list]:
     """
-    Called on Accepted verdict.  Updates Leitner, awards points, checks achievements.
+    Called on Accepted verdict.  Updates Leitner, awards points, checks achievements,
+    and synchronizes any active InterviewSession containing this problem.
     Returns (points_awarded, newly_unlocked_achievements).
     """
     from tracker.services.leitner import update_problem_progress
     from tracker.services.points_service import award_points
     from tracker.services.achievement_service import check_and_unlock_achievements
+    from tracker.models import InterviewProblem
 
     # Check if this is the FIRST accepted solve (to award base points once)
     progress, _ = UserProblemProgress.objects.get_or_create(
@@ -333,6 +370,25 @@ def _handle_accepted(user, problem, language: str, source_code: str) -> tuple[in
         code_solution=source_code,
         code_language=language,
     )
+
+    # Synchronize any active interview session containing this problem
+    active_ips = InterviewProblem.objects.filter(
+        session__user=user,
+        session__status='ACTIVE',
+        problem=problem,
+    ).select_related('session')
+    for ip in active_ips:
+        ip.solved = True
+        if submission:
+            ip.submission = submission
+        ip.attempts += 1
+        update_fields = ['solved', 'attempts']
+        if submission:
+            update_fields.append('submission')
+        ip.save(update_fields=update_fields)
+        session = ip.session
+        session.problems_solved = session.interview_problems.filter(solved=True).count()
+        session.save(update_fields=['problems_solved'])
 
     # Award base points only on first accepted solve
     points_awarded = 0

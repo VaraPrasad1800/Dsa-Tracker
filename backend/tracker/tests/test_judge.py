@@ -184,3 +184,37 @@ class JudgeSystemTests(TestCase):
         self.assertIn('java', cbl)
         self.assertIn('c', cbl)
         self.assertEqual(response.data.get('time_complexity'), 'O(1)')
+
+    def test_batch_execution_sandbox_compiles_once_and_cleans_up(self):
+        import os
+        from tracker.judge.executor import get_test_executor
+        from tracker.judge.sandbox import BatchExecutionSandbox
+
+        exec_obj = get_test_executor('cpp', 2.0, 128)
+        self.assertIsInstance(exec_obj, BatchExecutionSandbox)
+
+        cpp_code = (
+            "#include <iostream>\n"
+            "using namespace std;\n"
+            "int main() {\n"
+            "    int a, b;\n"
+            "    if (cin >> a >> b) cout << (a + b) << endl;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        res1 = exec_obj(cpp_code, '2 3')
+        self.assertEqual(res1.status, 'OK')
+        self.assertEqual(res1.stdout.strip(), '5')
+        self.assertTrue(exec_obj.is_compiled)
+        workdir = exec_obj.workdir
+        self.assertTrue(os.path.exists(workdir))
+
+        # Second test execution must reuse compiled binary without recompiling
+        res2 = exec_obj(cpp_code, '10 20')
+        self.assertEqual(res2.status, 'OK')
+        self.assertEqual(res2.stdout.strip(), '30')
+
+        # Cleanup must safely delete workdir
+        exec_obj.cleanup()
+        self.assertFalse(os.path.exists(workdir))
+

@@ -1700,8 +1700,16 @@ class SubmitCodeView(APIView):
         except Problem.DoesNotExist:
             return Response({'error': 'Problem not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Dispatch async Celery task
-        run_submission_task.delay(str(submission.id))
+        # Dispatch async task (Celery when broker is available; background thread fallback otherwise)
+        try:
+            run_submission_task.delay(str(submission.id))
+        except Exception as exc:
+            import logging
+            logger = logging.getLogger('tracker')
+            logger.warning("Celery dispatch failed (%s); evaluating via background thread.", exc)
+            import threading
+            from tracker.services.judge_service import execute_submission
+            threading.Thread(target=execute_submission, args=(str(submission.id),), daemon=True).start()
 
         return Response({
             'submission_id': str(submission.id),

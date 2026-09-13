@@ -1,21 +1,26 @@
 """
 Production-ready SendGrid email backend for Django.
 
-Uses the official `sendgrid` Python SDK (>=3.6.5). Falls back to Django's
-console backend when no SENDGRID_API_KEY is configured so local dev and tests
-work without credentials.
+Uses the official `sendgrid` Python SDK (v6+).
+In development (DEBUG=True), falls back to Django's console backend when
+no SENDGRID_API_KEY is configured so local dev and tests work without credentials.
+In production (DEBUG=False), raises ImproperlyConfigured if SENDGRID_API_KEY is
+missing, failing clearly instead of pretending emails were delivered.
 """
+import email.utils
 import logging
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
+from django.core.mail.backends.base import BaseEmailBackend
 from django.core.mail.backends.console import EmailBackend as ConsoleEmailBackend
 from django.core.mail.message import sanitize_address
 
 logger = logging.getLogger(__name__)
 
 
-class SendGridBackend:
+class SendGridBackend(BaseEmailBackend):
     """
-    Django email backend that sends via SendGrid's Web API v3.
+    Django email backend that sends via SendGrid's Web API v3 using the modern SDK.
 
     Configure in settings:
         EMAIL_BACKEND = 'tracker.email_backends.SendGridBackend'
@@ -24,21 +29,28 @@ class SendGridBackend:
     """
 
     def __init__(self, fail_silently=False, **kwargs):
-        self.fail_silently = fail_silently
-        self.api_key = getattr(settings, 'SENDGRID_API_KEY', None)
+        super().__init__(fail_silently=fail_silently, **kwargs)
+        self.api_key = (getattr(settings, 'SENDGRID_API_KEY', '') or '').strip()
         self.from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'DSA Tracker <no-reply@dsatracker.app>')
-        # If no API key, delegate to console backend for local dev/tests
+
+        is_debug = getattr(settings, 'DEBUG', True)
         if not self.api_key:
+            if not is_debug:
+                raise ImproperlyConfigured(
+                    "SENDGRID_API_KEY is missing or empty. "
+                    "Cannot send emails in production without a configured SendGrid API key."
+                )
             self._fallback = ConsoleEmailBackend(fail_silently=fail_silently)
         else:
             self._fallback = None
             # Lazy import to avoid import-time dependency when key is absent
             from sendgrid import SendGridAPIClient
-            from sendgrid.helpers.mail import Mail, Email, Content
+            from sendgrid.helpers.mail import Mail, Email, Cc, Bcc
             self._sg = SendGridAPIClient(self.api_key)
             self._Mail = Mail
             self._Email = Email
-            self._Content = Content
+            self._Cc = Cc
+            self._Bcc = Bcc
 
     def send_messages(self, email_messages):
         """
@@ -50,7 +62,7 @@ class SendGridBackend:
             return 0
 
         if self._fallback is not None:
-            # No SendGrid key → delegate to console
+            # No SendGrid key in debug/dev mode → delegate to console
             return self._fallback.send_messages(email_messages)
 
         sent_count = 0
@@ -65,33 +77,47 @@ class SendGridBackend:
         return sent_count
 
     def _send_single(self, message):
-        # Build recipient list
+        # 1. Sanitize recipient list
         to_emails = [sanitize_address(addr, message.encoding) for addr in message.to]
-        cc_emails = [sanitize_address(addr, message.encoding) for addr in message.cc] if message.cc else []
-        bcc_emails = [sanitize_address(addr, message.encoding) for addr in message.bcc] if message.bcc else []
+        if not to_emails:
+            logger.warning('Email message has no recipients; skipping.')
+            return
 
-        # Build SendGrid Mail object
-        # SendGrid 3.6.5 Mail(from_email, subject, to_email, content)
-        mail_obj = self._Mail(
-            from_email=self._Email(message.from_email or self.from_email),
-            subject=message.subject,
-            to_email=self._Email(to_emails[0]) if to_emails else None,
-            content=self._Content('text/plain', message.body),
-        )
+        # 2. Parse from_email into display name and clean address for SendGrid v3
+        raw_from = message.from_email or self.from_email
+        name, addr = email.utils.parseaddr(raw_from)
+        if name:
+            from_email_obj = self._Email(addr, name)
+        else:
+            from_email_obj = self._Email(addr or raw_from)
 
-        # Add CC / BCC if present
-        for addr in cc_emails:
-            mail_obj.add_cc(self._Email(addr))
-        for addr in bcc_emails:
-            mail_obj.add_bcc(self._Email(addr))
-
-        # Add HTML alternative if present
+        # 3. Extract HTML alternative if present
+        html_content = None
         for alt_content, alt_type in getattr(message, 'alternatives', []):
             if alt_type == 'text/html':
-                mail_obj.add_content(self._Content('text/html', alt_content))
+                html_content = alt_content
                 break
 
-        # Send via SendGrid API
+        # 4. Build modern SendGrid v6 Mail object
+        # SendGrid 6.x signature:
+        # Mail(from_email=..., to_emails=..., subject=..., plain_text_content=..., html_content=...)
+        mail_obj = self._Mail(
+            from_email=from_email_obj,
+            to_emails=to_emails,
+            subject=message.subject,
+            plain_text_content=message.body,
+            html_content=html_content,
+        )
+
+        # 5. Add CC / BCC if present
+        if message.cc:
+            for addr in message.cc:
+                mail_obj.add_cc(self._Cc(sanitize_address(addr, message.encoding)))
+        if message.bcc:
+            for addr in message.bcc:
+                mail_obj.add_bcc(self._Bcc(sanitize_address(addr, message.encoding)))
+
+        # 6. Send via SendGrid API
         response = self._sg.client.mail.send.post(request_body=mail_obj.get())
         if response.status_code >= 400:
             raise RuntimeError(f'SendGrid API error {response.status_code}: {response.body}')

@@ -1,28 +1,32 @@
 """Tests for the SendGrid email backend and its console fallback."""
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, override_settings
+from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 
 from tracker.email_backends import SendGridBackend
 
 
-class SendGridBackendFallbackTests(TestCase):
-    """Without a SENDGRID_API_KEY the backend delegates to the console backend."""
+class SendGridBackendFallbackTests(SimpleTestCase):
+    """Verifies fallback in dev mode and fail-fast in production mode."""
 
-    @override_settings(SENDGRID_API_KEY='', EMAIL_BACKEND='tracker.email_backends.SendGridBackend')
-    def test_falls_back_to_console_without_key(self):
+    @override_settings(SENDGRID_API_KEY='', EMAIL_BACKEND='tracker.email_backends.SendGridBackend', DEBUG=True)
+    def test_falls_back_to_console_in_debug_mode(self):
         backend = SendGridBackend(fail_silently=False)
-        # Delegates to console backend → no exception, prints to stdout
         message = EmailMessage(
             subject='Hello',
             body='Body',
             from_email='test@example.com',
             to=['someone@example.com'],
         )
-        # send via the console delegation path
         sent = backend.send_messages([message])
         self.assertEqual(sent, 1)
+
+    @override_settings(SENDGRID_API_KEY='', EMAIL_BACKEND='tracker.email_backends.SendGridBackend', DEBUG=False)
+    def test_raises_improperly_configured_in_production_mode(self):
+        with self.assertRaises(ImproperlyConfigured):
+            SendGridBackend(fail_silently=False)
 
 
 @override_settings(
@@ -30,7 +34,7 @@ class SendGridBackendFallbackTests(TestCase):
     EMAIL_BACKEND='tracker.email_backends.SendGridBackend',
     DEFAULT_FROM_EMAIL='DSA Tracker <no-reply@dsatracker.app>',
 )
-class SendGridBackendClientTests(TestCase):
+class SendGridBackendClientTests(SimpleTestCase):
     """Verifies the SendGrid payload construction without a real network call."""
 
     def _make_backend(self):

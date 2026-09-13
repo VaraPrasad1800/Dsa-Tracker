@@ -62,6 +62,7 @@ urlpatterns = [
     path('auth/forgot-password/', views.ForgotPasswordView.as_view(), name='auth-forgot-password'),
     path('auth/reset-password/', views.ResetPasswordView.as_view(), name='auth-reset-password'),
     path('auth/refresh-token/', views.RefreshTokenView.as_view(), name='auth-refresh-token'),
+    path('auth/logout/', views.LogoutView.as_view(), name='auth-logout'),
     path('auth/me/', views.CurrentUserView.as_view(), name='auth-me'),
 
     # Bookmarks
@@ -73,6 +74,7 @@ urlpatterns = [
     path('submit/', views.SubmitCodeView.as_view(), name='submit-code'),
     path('languages/', views.LanguagesView.as_view(), name='languages'),
     path('submissions/<uuid:pk>/', views.SubmissionDetailView.as_view(), name='submission-detail'),
+    path('submissions/<uuid:pk>/status/', views.SubmissionStatusView.as_view(), name='submission-status'),
 
     # V2: Challenges
     path('challenges/', views.ChallengeListView.as_view(), name='challenge-list'),

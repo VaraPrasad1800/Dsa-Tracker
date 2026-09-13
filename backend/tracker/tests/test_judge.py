@@ -83,7 +83,8 @@ class JudgeSystemTests(TestCase):
         code = "print(0)"
         result = submit_code(self.user, str(self.problem.id), 'python', code)
         # Verify hidden test input/output are not leaked in verdict dict
-        result_str = str(result)
+        sanitized_result = {k: v for k, v in result.items() if k != 'submission_id'}
+        result_str = str(sanitized_result)
         self.assertNotIn('10 20', result_str)
         self.assertNotIn('30', result_str)
 

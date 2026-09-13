@@ -1,0 +1,35 @@
+[flake8]
+max-line-length = 120
+exclude =
+    .git,
+    __pycache__,
+    */migrations/*,
+    venv,
+    env,
+    .pytest_cache,
+    data,
+    node_modules,
+    frontend
+ignore =
+    W503,
+    W504,
+    E203,
+    E501,
+    E402,
+    E302,
+    E303,
+    E305,
+    E731,
+    E741,
+    W291,
+    W292,
+    W293,
+    W391,
+    E127,
+    E128,
+    E131,
+    E241,
+    F401,
+    F841,
+    F541,
+    F811

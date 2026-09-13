@@ -90,3 +90,31 @@ def seed_achievements():
     from tracker.services.achievement_service import seed_achievements as _seed
     _seed()
     return 'Achievements seeded'
+
+
+@shared_task(name='tracker.tasks.run_submission_task', queue='judge')
+def run_submission_task(submission_id):
+    """
+    Asynchronously executes an Online Judge submission.
+    Updates the Submission row with the verdict, metrics, and side effects.
+    """
+    from tracker.services.judge_service import execute_submission
+    return execute_submission(str(submission_id))
+
+
+@shared_task(name='tracker.tasks.cleanup_expired_tokens')
+def cleanup_expired_tokens():
+    """
+    Delete expired or revoked refresh tokens older than 30 days.
+    """
+    from datetime import timedelta
+    from django.utils import timezone
+    from django.db.models import Q
+    from tracker.models import RefreshToken
+
+    cutoff = timezone.now() - timedelta(days=30)
+    deleted_count, _ = RefreshToken.objects.filter(
+        Q(expires_at__lt=cutoff) | Q(revoked=True, revoked_at__lt=cutoff)
+    ).delete()
+    return f'Cleaned up {deleted_count} expired/revoked refresh tokens'
+

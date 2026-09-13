@@ -107,15 +107,19 @@ def generate_jwt_token(user, token_type='access'):
 
     secret = getattr(settings, 'JWT_SECRET_KEY', settings.SECRET_KEY)
     algorithm = getattr(settings, 'JWT_ALGORITHM', 'HS256')
-    expiration_hours = getattr(settings, 'JWT_EXPIRATION_HOURS', 24) if token_type == 'access' \
+    expiration_hours = getattr(settings, 'JWT_EXPIRATION_HOURS', 1) if token_type == 'access' \
         else getattr(settings, 'JWT_REFRESH_EXPIRATION_HOURS', 24 * 7)
 
+    import uuid
+
+    now = datetime.utcnow()
     payload = {
         'user_id': user.pk,
         'username': user.username,
         'token_type': token_type,
-        'exp': datetime.utcnow() + timedelta(hours=expiration_hours),
-        'iat': datetime.utcnow(),
+        'exp': now + timedelta(hours=expiration_hours),
+        'iat': now,
+        'jti': uuid.uuid4().hex,
     }
 
     token = jwt.encode(payload, secret, algorithm=algorithm)
@@ -124,10 +128,27 @@ def generate_jwt_token(user, token_type='access'):
 
 def generate_jwt_tokens(user):
     """
-    Generate a pair of JWT access + refresh tokens for a user.
+    Generate a pair of JWT access + refresh tokens for a user,
+    and persist the refresh token hash in the RefreshToken model.
     """
+    from tracker.models import RefreshToken
+    from tracker.services.auth_tokens import hash_token
+    from django.utils import timezone
+    from datetime import timedelta
+
     access = generate_jwt_token(user, token_type='access')
     refresh = generate_jwt_token(user, token_type='refresh')
+
+    refresh_hours = getattr(settings, 'JWT_REFRESH_EXPIRATION_HOURS', 24 * 7)
+    expires_at = timezone.now() + timedelta(hours=refresh_hours)
+
+    RefreshToken.objects.create(
+        user=user,
+        token_hash=hash_token(refresh),
+        expires_at=expires_at,
+        revoked=False,
+    )
+
     return {'access': access, 'refresh': refresh}
 
 
@@ -137,3 +158,23 @@ def decode_jwt_token(token):
     secret = getattr(settings, 'JWT_SECRET_KEY', settings.SECRET_KEY)
     algorithm = getattr(settings, 'JWT_ALGORITHM', 'HS256')
     return _jwt.decode(token, secret, algorithms=[algorithm])
+
+
+try:
+    from drf_spectacular.extensions import OpenApiAuthenticationExtension
+
+    class JWTAuthenticationScheme(OpenApiAuthenticationExtension):
+        target_class = 'tracker.authentication.JWTAuthentication'
+        name = 'jwtAuth'
+
+        def get_security_requirement(self, auto_schema):
+            return {self.name: []}
+
+        def get_security_definition(self, auto_schema):
+            return {
+                'type': 'http',
+                'scheme': 'bearer',
+                'bearerFormat': 'JWT',
+            }
+except ImportError:
+    pass

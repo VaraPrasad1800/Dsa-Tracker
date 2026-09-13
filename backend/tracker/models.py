@@ -797,3 +797,25 @@ class UserPoints(models.Model):
 
     def __str__(self):
         return f'{self.user.username}: {self.total} pts total'
+
+
+class RefreshToken(models.Model):
+    """Stores refresh token hashes for revocation and rotation tracking."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='refresh_tokens')
+    token_hash = models.CharField(max_length=64, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    revoked = models.BooleanField(default=False)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token_hash']),
+            models.Index(fields=['user', 'revoked']),
+        ]
+
+    def __str__(self):
+        status_str = 'Revoked' if self.revoked else 'Active'
+        return f'{self.user.username} - {status_str} (expires {self.expires_at})'
+

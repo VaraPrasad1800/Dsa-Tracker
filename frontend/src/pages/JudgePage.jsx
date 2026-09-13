@@ -8,7 +8,6 @@ import {
   Clock,
   Cpu,
   RotateCcw,
-  Code2,
   Terminal,
   History,
   FileText,
@@ -19,6 +18,7 @@ import {
   AlertTriangle,
   ExternalLink,
   LayoutGrid,
+  Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MonacoCodeEditor from '../components/judge/CodeEditor';
@@ -103,6 +103,8 @@ export default function JudgePage({ initialProblemId }) {
   const [submitResult, setSubmitResult] = useState(null);
   const [viewingSubmission, setViewingSubmission] = useState(null);
   const [viewingLoading, setViewingLoading] = useState(false);
+  const [pollingSubmissionId, setPollingSubmissionId] = useState(null);
+  const [pollingStartTime, setPollingStartTime] = useState(null);
 
   // Split layout container refs & state
   const containerRef = useRef(null);
@@ -320,29 +322,92 @@ export default function JudgePage({ initialProblemId }) {
     },
   });
 
+  // Polling query for async judge status
+  const { data: statusData } = useQuery({
+    queryKey: ['submission_status', pollingSubmissionId],
+    queryFn: async () => {
+      if (!pollingSubmissionId) return null;
+      const res = await judgeApi.getSubmissionStatus(pollingSubmissionId);
+      return res.data;
+    },
+    enabled: !!pollingSubmissionId,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!pollingSubmissionId) return false;
+      if (!data || data.verdict === 'PENDING') {
+        if (pollingStartTime && Date.now() - pollingStartTime > 45000) {
+          return false;
+        }
+        return 1500;
+      }
+      return false;
+    },
+  });
+
+  // Effect: When async evaluation completes, fetch full submission detail
+  useEffect(() => {
+    if (!pollingSubmissionId || !statusData) return;
+
+    if (statusData.verdict && statusData.verdict !== 'PENDING') {
+      const subId = pollingSubmissionId;
+      setPollingSubmissionId(null);
+      setPollingStartTime(null);
+
+      judgeApi
+        .getSubmissionDetail(subId)
+        .then((res) => {
+          setSubmitResult(res.data);
+          setRunResult(null);
+          setActiveBottomTab('result');
+
+          queryClient.invalidateQueries({ queryKey: ['submissions_history', selectedProblemId] });
+          queryClient.invalidateQueries({ queryKey: ['points'] });
+          queryClient.invalidateQueries({ queryKey: ['achievements'] });
+          queryClient.invalidateQueries({ queryKey: ['user_progress_stats'] });
+
+          if (res.data.verdict === 'ACCEPTED') {
+            toast.success('Accepted! Problem solved successfully.', { icon: '🎉' });
+          } else {
+            toast.error(`Verdict: ${res.data.verdict}`);
+          }
+        })
+        .catch(() => {
+          toast.error('Failed to load final submission details');
+        });
+    }
+  }, [statusData, pollingSubmissionId, selectedProblemId, queryClient]);
+
   // Submit Code Mutation
   const submitCodeMutation = useMutation({
     mutationFn: (payload) => judgeApi.submitCode(payload),
     onSuccess: (res) => {
-      setSubmitResult(res.data);
+      const subId = res.data.submission_id;
       setRunResult(null);
+      setSubmitResult(null);
       setActiveBottomTab('result');
-      queryClient.invalidateQueries({ queryKey: ['submissions_history', selectedProblemId] });
-      queryClient.invalidateQueries({ queryKey: ['points'] });
-      queryClient.invalidateQueries({ queryKey: ['achievements'] });
 
-      if (res.data.verdict === 'ACCEPTED') {
-        toast.success(`Accepted! +${res.data.points_awarded || 0} pts`, { icon: '🎉' });
-        if (res.data.achievements_unlocked?.length > 0) {
-          res.data.achievements_unlocked.forEach((a) => {
-            toast.success(`Achievement Unlocked: ${a.name} ${a.icon}`, { duration: 5000 });
-          });
+      // If already finished synchronously (e.g. eager Celery mode)
+      if (res.data.verdict && res.data.verdict !== 'PENDING') {
+        setSubmitResult(res.data);
+        queryClient.invalidateQueries({ queryKey: ['submissions_history', selectedProblemId] });
+        queryClient.invalidateQueries({ queryKey: ['points'] });
+        queryClient.invalidateQueries({ queryKey: ['achievements'] });
+        queryClient.invalidateQueries({ queryKey: ['user_progress_stats'] });
+
+        if (res.data.verdict === 'ACCEPTED') {
+          toast.success(`Accepted! +${res.data.points_awarded || 0} pts`, { icon: '🎉' });
+        } else {
+          toast.error(`Verdict: ${res.data.verdict}`);
         }
-      } else {
-        toast.error(`Verdict: ${res.data.verdict}`);
+        return;
       }
+
+      // Begin polling until evaluation finishes
+      setPollingSubmissionId(subId);
+      setPollingStartTime(Date.now());
     },
     onError: (err) => {
+      setPollingSubmissionId(null);
       toast.error(err.response?.data?.error || 'Submission failed');
     },
   });
@@ -466,23 +531,31 @@ export default function JudgePage({ initialProblemId }) {
           {/* Run Code */}
           <button
             onClick={handleRun}
-            disabled={!currentProblem?.is_judge_ready || runCodeMutation.isPending || submitCodeMutation.isPending}
+            disabled={!currentProblem?.is_judge_ready || runCodeMutation.isPending || submitCodeMutation.isPending || !!pollingSubmissionId}
             title={!currentProblem?.is_judge_ready ? "Online Judge configuration unavailable for this problem" : "Run Code"}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs font-semibold border border-white/10 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Play className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400" />
-            <span>Run Code</span>
+            {runCodeMutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 text-emerald-400 animate-spin" />
+            ) : (
+              <Play className="h-3.5 w-3.5 text-emerald-400 fill-emerald-400" />
+            )}
+            <span>{runCodeMutation.isPending ? 'Running...' : 'Run Code'}</span>
           </button>
 
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            disabled={!currentProblem?.is_judge_ready || runCodeMutation.isPending || submitCodeMutation.isPending}
+            disabled={!currentProblem?.is_judge_ready || runCodeMutation.isPending || submitCodeMutation.isPending || !!pollingSubmissionId}
             title={!currentProblem?.is_judge_ready ? "Online Judge configuration unavailable for this problem" : "Submit Code"}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-xs font-bold shadow-lg shadow-emerald-500/20 hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <Send className="h-3.5 w-3.5" />
-            <span>{submitCodeMutation.isPending ? 'Judging...' : 'Submit'}</span>
+            {submitCodeMutation.isPending || !!pollingSubmissionId ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
+            <span>{submitCodeMutation.isPending || !!pollingSubmissionId ? 'Judging...' : 'Submit'}</span>
           </button>
         </div>
       </div>
@@ -727,7 +800,13 @@ export default function JudgePage({ initialProblemId }) {
               {/* Result Tab */}
               {activeBottomTab === 'result' && (
                 <div>
-                  {submitResult ? (
+                  {pollingSubmissionId && !submitResult ? (
+                    <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                      <Loader2 className="h-8 w-8 text-emerald-400 animate-spin" />
+                      <div className="text-sm font-semibold text-slate-200">Evaluating your solution...</div>
+                      <div className="text-xs text-slate-500">Running against test cases in the sandbox</div>
+                    </div>
+                  ) : submitResult ? (
                     <div className="space-y-3">
                       {/* Verdict header banner */}
                       <div

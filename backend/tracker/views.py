@@ -601,7 +601,48 @@ class UserProgressStatsView(APIView):
         box_stats = get_leitner_box_stats(user)
         streak_data = get_user_streaks(user)
         topic_data = get_user_topic_breakdown(user)
-        weak_topics = [t['name'] for t in topic_data['topics'] if t['is_weak']][:5]
+        topic_map = {t['name']: t for t in topic_data.get('topics', [])}
+
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        custom_topics = profile.focus_topics.all()
+        is_custom_focus = custom_topics.exists()
+
+        if is_custom_focus:
+            focus_topics_detail = []
+            for tag in custom_topics:
+                matched = topic_map.get(tag.name)
+                if matched:
+                    focus_topics_detail.append({
+                        'id': tag.id,
+                        'name': tag.name,
+                        'slug': tag.slug,
+                        'color': tag.color,
+                        'solved': matched['solved'],
+                        'total': matched['total'],
+                        'percentage': matched['percentage'],
+                        'is_custom': True,
+                    })
+                else:
+                    tot = Problem.objects.filter(tags=tag).count()
+                    sol = UserProblemProgress.objects.filter(user=user, problem__tags=tag, status='SOLVED').count()
+                    pct = round((sol / tot * 100), 1) if tot > 0 else 0
+                    focus_topics_detail.append({
+                        'id': tag.id,
+                        'name': tag.name,
+                        'slug': tag.slug,
+                        'color': tag.color,
+                        'solved': sol,
+                        'total': tot,
+                        'percentage': pct,
+                        'is_custom': True,
+                    })
+            weak_topics = [t['name'] for t in focus_topics_detail]
+        else:
+            focus_topics_detail = [
+                {**t, 'is_custom': False}
+                for t in topic_data.get('topics', []) if t.get('is_weak')
+            ][:5]
+            weak_topics = [t['name'] for t in focus_topics_detail]
 
         return Response({
             'total_problems': total_problems,
@@ -612,7 +653,181 @@ class UserProgressStatsView(APIView):
             'longest_streak': streak_data['longest_streak'],
             'due_today_count': box_stats['due_today_count'],
             'weak_topics': weak_topics,
+            'focus_topics_detail': focus_topics_detail,
+            'is_custom_focus': is_custom_focus,
         })
+
+
+class UserFocusTopicsView(APIView):
+    """
+    Get or update custom focus topics for the authenticated user.
+    GET: Returns list of user's focus topics (or auto-detected weak topics if none set).
+    PUT: Sets custom focus topics (maximum 5). Pass empty list to reset to auto-detection.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = get_request_user(request)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        topic_data = get_user_topic_breakdown(user)
+        topic_map = {t['slug']: t for t in topic_data.get('topics', [])}
+        topic_map.update({str(t['id']): t for t in topic_data.get('topics', [])})
+        topic_map.update({t['name']: t for t in topic_data.get('topics', [])})
+
+        custom_topics = profile.focus_topics.all()
+        is_custom = custom_topics.exists()
+
+        if is_custom:
+            results = []
+            for tag in custom_topics:
+                matched = topic_map.get(tag.slug) or topic_map.get(str(tag.id)) or topic_map.get(tag.name)
+                if matched:
+                    results.append({
+                        'id': tag.id,
+                        'name': tag.name,
+                        'slug': tag.slug,
+                        'color': tag.color,
+                        'solved': matched['solved'],
+                        'total': matched['total'],
+                        'percentage': matched['percentage'],
+                        'is_custom': True,
+                    })
+                else:
+                    tot = Problem.objects.filter(tags=tag).count()
+                    sol = UserProblemProgress.objects.filter(user=user, problem__tags=tag, status='SOLVED').count()
+                    pct = round((sol / tot * 100), 1) if tot > 0 else 0
+                    results.append({
+                        'id': tag.id,
+                        'name': tag.name,
+                        'slug': tag.slug,
+                        'color': tag.color,
+                        'solved': sol,
+                        'total': tot,
+                        'percentage': pct,
+                        'is_custom': True,
+                    })
+        else:
+            results = [
+                {**t, 'is_custom': False}
+                for t in topic_data.get('topics', []) if t.get('is_weak')
+            ][:5]
+
+        return Response({
+            'focus_topics': results,
+            'is_custom': is_custom,
+        })
+
+    def put(self, request):
+        user = get_request_user(request)
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        topic_identifiers = request.data.get('topic_ids', [])
+
+        if not isinstance(topic_identifiers, list):
+            return Response({'error': 'topic_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(topic_identifiers) > 5:
+            return Response({'error': 'Maximum 5 focus topics allowed'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(topic_identifiers) == 0:
+            profile.focus_topics.clear()
+            return self.get(request)
+
+        q = Q()
+        for ident in topic_identifiers:
+            ident_str = str(ident).strip()
+            if ident_str.isdigit():
+                q |= Q(id=int(ident_str))
+            else:
+                q |= Q(slug__iexact=ident_str) | Q(name__iexact=ident_str)
+
+        matched_tags = list(Tag.objects.filter(q))
+        profile.focus_topics.set(matched_tags)
+        return self.get(request)
+
+
+class TopicPracticeView(APIView):
+    """
+    Returns prioritized practice problems for a specific topic.
+    Prioritizes:
+    1. Problems marked NEEDS_REVISIT or UNSOLVED
+    2. Easy and Medium difficulties first
+    3. High interview frequency
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        topic_param = request.query_params.get('topic', '').strip()
+        if not topic_param:
+            return Response({'error': 'Query parameter "topic" is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            tag = Tag.objects.filter(Q(slug__iexact=topic_param) | Q(name__iexact=topic_param)).first()
+        except Exception:
+            tag = None
+
+        if not tag:
+            return Response({'error': f'Topic "{topic_param}" not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user = get_request_user(request)
+        user_profile = getattr(user, 'profile', None) if user else None
+
+        base_qs = Problem.objects.filter(tags=tag).prefetch_related('tags', 'companies')
+        total_problems = base_qs.count()
+
+        if user:
+            solved_ids = set(
+                UserProblemProgress.objects.filter(
+                    user=user, problem__tags=tag, status='SOLVED'
+                ).values_list('problem_id', flat=True)
+            )
+            revisit_ids = set(
+                UserProblemProgress.objects.filter(
+                    user=user, problem__tags=tag, status='NEEDS_REVISIT'
+                ).values_list('problem_id', flat=True)
+            )
+
+            # Prioritize revisit first, then completely unsolved
+            revisit_problems = list(base_qs.filter(id__in=revisit_ids).order_by('-frequency', 'difficulty')[:5])
+            unsolved_problems = list(base_qs.exclude(id__in=solved_ids | revisit_ids).order_by('-frequency', 'difficulty')[:10])
+
+            selected_problems = (revisit_problems + unsolved_problems)[:10]
+            # Fallback if all are solved: just return top problems in topic
+            if not selected_problems:
+                selected_problems = list(base_qs.order_by('-frequency', 'difficulty')[:10])
+
+            selected_ids = [p.id for p in selected_problems]
+            user_progress_map = {
+                up.problem_id: up
+                for up in UserProblemProgress.objects.filter(user=user, problem_id__in=selected_ids)
+            }
+            bookmarked_id_set = set(
+                user_profile.bookmarked_problems.filter(id__in=selected_ids).values_list('id', flat=True)
+            ) if user_profile else set()
+        else:
+            selected_problems = list(base_qs.order_by('-frequency', 'difficulty')[:10])
+            user_progress_map = {}
+            bookmarked_id_set = set()
+
+        serializer_context = {
+            'request': request,
+            'user_progress_map': user_progress_map,
+            'bookmarked_id_set': bookmarked_id_set,
+        }
+        serialized_problems = ProblemListSerializer(selected_problems, many=True, context=serializer_context).data
+        target_problem = serialized_problems[0] if serialized_problems else None
+
+        return Response({
+            'topic': {
+                'id': tag.id,
+                'name': tag.name,
+                'slug': tag.slug,
+                'color': tag.color,
+                'total_problems': total_problems,
+            },
+            'target_problem': target_problem,
+            'problems': serialized_problems,
+        })
+
 
 # Phase 2 Spaced Repetition Endpoints
 class DueTodayView(APIView):

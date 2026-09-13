@@ -191,6 +191,27 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
     toast('🎲 Shuffled problem set!', { icon: '✨' });
   };
 
+  const handlePracticeTopic = async (topic) => {
+    try {
+      const toastId = toast.loading(`Finding practice question for ${topic}...`);
+      const res = await problemsApi.getTopicPractice(topic);
+      toast.dismiss(toastId);
+      if (res.data?.target_problem) {
+        if (onSolve) {
+          onSolve(res.data.target_problem);
+        } else {
+          handleFilterChange('topic', topic);
+        }
+      } else {
+        toast.error(`No practice questions found for ${topic}`);
+        handleFilterChange('topic', topic);
+      }
+    } catch (err) {
+      toast.error(`Could not load practice question for ${topic}`);
+      handleFilterChange('topic', topic);
+    }
+  };
+
   const rawProblems = problemsData?.results || [];
   const problems = React.useMemo(() => {
     const seen = new Set();
@@ -247,6 +268,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, o
       <StatsSummary
         stats={userStats}
         onSelectFilterTopic={(topic) => handleFilterChange('topic', topic)}
+        onPracticeTopic={handlePracticeTopic}
       />
 
       {/* Main Layout: Filters Sidebar + Search & Table/Cards */}

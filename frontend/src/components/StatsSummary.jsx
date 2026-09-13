@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useSpring, animate } from 'framer-motion';
-import { CheckCircle2, Flame, Clock, AlertTriangle, Trophy } from 'lucide-react';
+import { CheckCircle2, Flame, Clock, AlertTriangle, Trophy, Pencil, Play, Target } from 'lucide-react';
+import EditFocusAreasModal from './dashboard/EditFocusAreasModal';
 
 /* =====================================================
    Animated count-up number hook
@@ -92,7 +93,7 @@ function ProgressRing({ value, max, color = 'indigo', size = 68, stroke = 5 }) {
 /* =====================================================
    Individual Stat Card
    ===================================================== */
-function StatCard({ icon: Icon, label, children, glowClass = '', delay = 0 }) {
+function StatCard({ icon: Icon, label, children, glowClass = '', delay = 0, action = null }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -108,8 +109,11 @@ function StatCard({ icon: Icon, label, children, glowClass = '', delay = 0 }) {
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>
             {label}
           </span>
-          <div className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
-            <Icon className="h-3.5 w-3.5" style={{ width: 14, height: 14, color: '#64748b' }} />
+          <div className="flex items-center gap-1.5">
+            {action}
+            <div className="p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)' }}>
+              <Icon className="h-3.5 w-3.5" style={{ width: 14, height: 14, color: '#64748b' }} />
+            </div>
           </div>
         </div>
         {children}
@@ -121,7 +125,8 @@ function StatCard({ icon: Icon, label, children, glowClass = '', delay = 0 }) {
 /* =====================================================
    Main StatsSummary
    ===================================================== */
-export default function StatsSummary({ stats, onSelectFilterTopic }) {
+export default function StatsSummary({ stats, onSelectFilterTopic, onPracticeTopic }) {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const solved = stats?.total_solved || 0;
   const total = stats?.total_problems || 1;
   const percentage = Math.round((solved / total) * 100);
@@ -130,6 +135,8 @@ export default function StatsSummary({ stats, onSelectFilterTopic }) {
   const dueToday = stats?.due_today_count || 0;
   const revisit = stats?.total_revisit || 0;
   const weakTopics = stats?.weak_topics || [];
+  const focusTopicsDetail = stats?.focus_topics_detail || [];
+  const isCustomFocus = stats?.is_custom_focus || false;
 
   const displaySolved = useCountUp(solved);
   const displayStreak = useCountUp(streak);
@@ -219,39 +226,77 @@ export default function StatsSummary({ stats, onSelectFilterTopic }) {
 
       {/* Card 4: Focus Areas */}
       <StatCard
-        icon={AlertTriangle}
-        label="Focus Areas"
-        glowClass="bg-stat-glow-rose"
+        icon={isCustomFocus ? Target : AlertTriangle}
+        label={isCustomFocus ? "Target Focus" : "Focus Areas"}
+        glowClass={isCustomFocus ? "bg-stat-glow-blue" : "bg-stat-glow-rose"}
         delay={0.24}
+        action={
+          <button
+            type="button"
+            onClick={() => setIsEditModalOpen(true)}
+            title="Customize Focus Areas"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        }
       >
-        <div className="flex flex-wrap gap-1.5 mt-1">
-          {weakTopics.length > 0 ? (
+        <div className="flex flex-col gap-2 mt-1">
+          {focusTopicsDetail.length > 0 || weakTopics.length > 0 ? (
             <>
-              {weakTopics.slice(0, 3).map((topic) => (
+              <div className="flex flex-wrap gap-1.5">
+                {(focusTopicsDetail.length > 0 ? focusTopicsDetail : weakTopics.slice(0, 4).map(name => ({ name }))).slice(0, 4).map((topicObj) => {
+                  const name = topicObj.name || topicObj;
+                  return (
+                    <div
+                      key={name}
+                      className="group/pill inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all duration-150"
+                      style={{
+                        background: isCustomFocus ? 'rgba(99,102,241,0.1)' : 'rgba(244,63,94,0.1)',
+                        borderColor: isCustomFocus ? 'rgba(99,102,241,0.2)' : 'rgba(244,63,94,0.2)',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelectFilterTopic?.(name)}
+                        title={`Filter problems by ${name}`}
+                        className="px-2 py-1 font-medium transition hover:brightness-125"
+                        style={{ color: isCustomFocus ? '#a5b4fc' : '#fb7185' }}
+                      >
+                        {name}
+                      </button>
+
+                      {onPracticeTopic && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPracticeTopic(name);
+                          }}
+                          title={`Practice ${name} in online judge`}
+                          className="px-1.5 py-1 border-l hover:bg-white/10 transition flex items-center justify-center"
+                          style={{
+                            borderColor: isCustomFocus ? 'rgba(99,102,241,0.2)' : 'rgba(244,63,94,0.2)',
+                            color: isCustomFocus ? '#818cf8' : '#f43f5e',
+                          }}
+                        >
+                          <Play className="h-2.5 w-2.5 fill-current" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] w-full" style={{ color: '#475569' }}>
+                <span>{isCustomFocus ? 'Custom targets' : 'Under 50% solved'}</span>
                 <button
-                  key={topic}
-                  onClick={() => onSelectFilterTopic?.(topic)}
-                  className="text-xs px-2.5 py-1 rounded-lg transition-all duration-150 font-medium"
-                  style={{
-                    background: 'rgba(244,63,94,0.1)',
-                    color: '#fb7185',
-                    border: '1px solid rgba(244,63,94,0.2)',
-                    boxShadow: 'inset 0 1px 0 rgba(244,63,94,0.1)',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(244,63,94,0.18)';
-                    e.currentTarget.style.transform = 'translateY(-1px)';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(244,63,94,0.1)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="text-indigo-400 hover:text-indigo-300 transition text-[10px] font-medium"
                 >
-                  {topic}
+                  Edit
                 </button>
-              ))}
-              <div className="text-[11px] w-full mt-1" style={{ color: '#475569' }}>
-                Under 50% solved
               </div>
             </>
           ) : (
@@ -259,13 +304,26 @@ export default function StatsSummary({ stats, onSelectFilterTopic }) {
               <div className="text-sm font-semibold" style={{ color: '#34d399' }}>
                 ✓ All topics strong!
               </div>
-              <div className="text-[11px] mt-1" style={{ color: '#475569' }}>
-                Great coverage across all areas
+              <div className="text-[11px] mt-1 flex items-center justify-between" style={{ color: '#475569' }}>
+                <span>Great coverage across all areas</span>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="text-indigo-400 hover:text-indigo-300 transition text-[10px] font-medium"
+                >
+                  Set Targets
+                </button>
               </div>
             </div>
           )}
         </div>
       </StatCard>
+
+      {/* Edit Focus Areas Modal */}
+      <EditFocusAreasModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+      />
     </div>
   );
 }

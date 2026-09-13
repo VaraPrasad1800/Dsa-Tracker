@@ -4,6 +4,7 @@ from tracker import views
 urlpatterns = [
     # Phase 1: Problem Bank & Progress
     path('problems/', views.ProblemListView.as_view(), name='problem-list'),
+    path('problems/practice/', views.TopicPracticeView.as_view(), name='topic-practice'),
     path('problems/tags/', views.TagListView.as_view(), name='tag-list'),
     path('problems/companies/', views.CompanyListView.as_view(), name='company-list'),
     path('problems/by-company/<str:company_id>/', views.ProblemByCompanyView.as_view(), name='problem-by-company'),
@@ -17,6 +18,7 @@ urlpatterns = [
 
     path('user-progress/', views.UserProgressView.as_view(), name='user-progress-create'),
     path('user-progress/stats/', views.UserProgressStatsView.as_view(), name='user-progress-stats'),
+    path('user/focus-topics/', views.UserFocusTopicsView.as_view(), name='user-focus-topics'),
     path('user-progress/due-today/', views.DueTodayView.as_view(), name='due-today'),
     path('user-progress/<uuid:pk>/', views.UserProgressDetailView.as_view(), name='user-progress-detail'),
     path('user-progress/<uuid:pk>/history/', views.UserProgressHistoryView.as_view(), name='user-progress-history'),

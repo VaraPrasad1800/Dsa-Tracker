@@ -386,6 +386,9 @@ class UserProfile(models.Model):
     # Bookmarks
     bookmarked_problems = models.ManyToManyField(Problem, related_name='bookmarked_by', blank=True)
 
+    # Custom focus areas / weak topics chosen by user (max 5 enforced at API layer)
+    focus_topics = models.ManyToManyField(Tag, related_name='focused_by_users', blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

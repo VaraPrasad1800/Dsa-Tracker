@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Play,
@@ -18,13 +18,21 @@ import {
   Copy,
   AlertTriangle,
   ExternalLink,
+  LayoutGrid,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import MonacoCodeEditor from '../components/judge/CodeEditor';
 import ProblemSelector from '../components/judge/ProblemSelector';
 import ProblemStatement from '../components/judge/ProblemStatement';
 import SolutionViewer from '../components/judge/SolutionViewer';
+import ResizableDivider from '../components/judge/ResizableDivider';
 import { problemsApi, judgeApi } from '../api/client';
+
+const LAYOUT_STORAGE_KEY = 'dsa_judge_split_layout_v1';
+const DEFAULT_LAYOUT = {
+  leftWidthPercent: 42,
+  editorHeightPercent: 60,
+};
 
 const getFallbackTemplate = (problem, language) => {
   if (problem && !problem.is_judge_ready) {
@@ -95,6 +103,119 @@ export default function JudgePage({ initialProblemId }) {
   const [submitResult, setSubmitResult] = useState(null);
   const [viewingSubmission, setViewingSubmission] = useState(null);
   const [viewingLoading, setViewingLoading] = useState(false);
+
+  // Split layout container refs & state
+  const containerRef = useRef(null);
+  const rightPaneRef = useRef(null);
+
+  const [layout, setLayout] = useState(() => {
+    try {
+      const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.leftWidthPercent === 'number' && typeof parsed.editorHeightPercent === 'number') {
+          return {
+            leftWidthPercent: Math.min(Math.max(parsed.leftWidthPercent, 20), 75),
+            editorHeightPercent: Math.min(Math.max(parsed.editorHeightPercent, 25), 80),
+          };
+        }
+      }
+    } catch (e) {}
+    return DEFAULT_LAYOUT;
+  });
+
+  const [isDraggingH, setIsDraggingH] = useState(false);
+  const [isDraggingV, setIsDraggingV] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+    } catch (e) {}
+  }, [layout]);
+
+  // Horizontal drag handler: Left vs Right panes
+  useEffect(() => {
+    if (!isDraggingH) return;
+
+    const handleMouseMove = (e) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const offsetX = clientX - rect.left;
+      let newPercent = (offsetX / rect.width) * 100;
+      newPercent = Math.min(Math.max(newPercent, 20), 75);
+      setLayout((prev) => ({ ...prev, leftWidthPercent: newPercent }));
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingH(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDraggingH]);
+
+  // Vertical drag handler: Editor vs Bottom Console
+  useEffect(() => {
+    if (!isDraggingV) return;
+
+    const handleMouseMove = (e) => {
+      if (!rightPaneRef.current) return;
+      const rect = rightPaneRef.current.getBoundingClientRect();
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const offsetY = clientY - rect.top;
+      let newPercent = (offsetY / rect.height) * 100;
+      newPercent = Math.min(Math.max(newPercent, 25), 80);
+      setLayout((prev) => ({ ...prev, editorHeightPercent: newPercent }));
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingV(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDraggingV]);
+
+  const handleResetLayout = () => {
+    setLayout(DEFAULT_LAYOUT);
+    toast.success('Reset layout to defaults');
+  };
 
   const cacheKey = `${selectedProblemId}:${selectedLanguage}`;
 
@@ -333,6 +454,15 @@ export default function JudgePage({ initialProblemId }) {
             <RotateCcw className="h-4 w-4" />
           </button>
 
+          {/* Reset Layout */}
+          <button
+            onClick={handleResetLayout}
+            title="Reset panels to default layout"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.06] transition hidden lg:flex items-center gap-1"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+
           {/* Run Code */}
           <button
             onClick={handleRun}
@@ -386,9 +516,15 @@ export default function JudgePage({ initialProblemId }) {
       )}
 
       {/* Main Split View: Left (Description / Editorial) & Right (Code Editor + Console) */}
-      <div className="relative z-10 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-0">
+      <div
+        ref={containerRef}
+        className="relative z-10 flex-1 flex flex-col lg:flex-row min-h-0 w-full overflow-hidden gap-0"
+      >
         {/* Left Pane: Problem Description / Editorial Tabs */}
-        <div className="lg:col-span-5 bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-sm">
+        <div
+          style={isDesktop ? { width: `calc(${layout.leftWidthPercent}% - 6px)` } : undefined}
+          className="bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden shadow-sm w-full lg:min-w-[280px] lg:max-w-[75%] mb-3 lg:mb-0 shrink-0"
+        >
           {/* Left Pane Header Tabs */}
           <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-2.5 bg-slate-950/50 shrink-0">
             <div className="flex items-center gap-2">
@@ -446,21 +582,53 @@ export default function JudgePage({ initialProblemId }) {
           </div>
         </div>
 
+        {/* Vertical Separator between Left and Right Panes */}
+        <div className="hidden lg:flex items-stretch px-1">
+          <ResizableDivider
+            direction="horizontal"
+            isDragging={isDraggingH}
+            onMouseDown={() => setIsDraggingH(true)}
+            onTouchStart={() => setIsDraggingH(true)}
+          />
+        </div>
+
         {/* Right Pane: Code Editor + Tabs */}
-        <div className="lg:col-span-7 flex flex-col gap-3 min-h-0">
+        <div
+          ref={rightPaneRef}
+          style={isDesktop ? { width: `calc(${100 - layout.leftWidthPercent}% - 6px)` } : undefined}
+          className="flex flex-col min-h-0 w-full lg:min-w-[320px] lg:max-w-[80%] flex-1"
+        >
           {/* Monaco Editor Container */}
-          <div className="flex-1 min-h-[340px]">
-            <MonacoCodeEditor
-              value={code}
-              onChange={handleCodeChange}
-              language={selectedLanguage}
-              onRun={handleRun}
-              onSubmit={handleSubmit}
+          <div
+            style={isDesktop ? { height: `calc(${layout.editorHeightPercent}% - 6px)` } : undefined}
+            className="w-full min-h-[220px] flex flex-col overflow-hidden mb-3 lg:mb-0 shrink-0"
+          >
+            <div className="flex-1 h-full w-full min-h-[200px]">
+              <MonacoCodeEditor
+                value={code}
+                onChange={handleCodeChange}
+                language={selectedLanguage}
+                onRun={handleRun}
+                onSubmit={handleSubmit}
+              />
+            </div>
+          </div>
+
+          {/* Horizontal Separator between Editor and Console */}
+          <div className="hidden lg:flex items-stretch py-1">
+            <ResizableDivider
+              direction="vertical"
+              isDragging={isDraggingV}
+              onMouseDown={() => setIsDraggingV(true)}
+              onTouchStart={() => setIsDraggingV(true)}
             />
           </div>
 
           {/* Bottom Console Tabs */}
-          <div className="h-64 bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden">
+          <div
+            style={isDesktop ? { height: `calc(${100 - layout.editorHeightPercent}% - 6px)` } : undefined}
+            className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-white/[0.08] flex flex-col overflow-hidden w-full min-h-[160px] h-64 lg:h-auto flex-1"
+          >
             {/* Tab header */}
             <div className="flex items-center justify-between border-b border-white/[0.08] px-3 py-2 bg-slate-950/40">
               <div className="flex items-center gap-2">
@@ -697,6 +865,15 @@ export default function JudgePage({ initialProblemId }) {
           </div>
         </div>
       </div>
+
+      {/* Invisible overlay while dragging to catch mouse/touch events over Monaco */}
+      {(isDraggingH || isDraggingV) && (
+        <div
+          className={`fixed inset-0 z-50 select-none bg-transparent ${
+            isDraggingH ? 'cursor-col-resize' : 'cursor-row-resize'
+          }`}
+        />
+      )}
 
       {/* View Submission Code Modal */}
       {viewingSubmission && (

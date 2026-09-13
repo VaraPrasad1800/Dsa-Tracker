@@ -102,6 +102,12 @@ export const problemsApi = {
   getTags: () => api.get('/problems/tags/'),
   getCompanies: () => api.get('/problems/companies/'),
   getCompanyProblems: (companyId, params) => api.get(`/problems/by-company/${companyId}/`, { params }),
+  getTopicPractice: (topic) => api.get('/problems/practice/', { params: { topic } }),
+};
+
+export const focusTopicsApi = {
+  getFocusTopics: () => api.get('/user/focus-topics/'),
+  updateFocusTopics: (topicIds) => api.put('/user/focus-topics/', { topic_ids: topicIds }),
 };
 
 export const bookmarksApi = {

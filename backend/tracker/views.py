@@ -453,12 +453,19 @@ class ProblemByCompanyView(APIView):
                 q |= Q(tags__slug__iexact=t) | Q(tags__name__iexact=t)
             queryset = queryset.filter(q)
 
-        search = request.query_params.get('search')
+        search = request.query_params.get('search', '').strip()
+        exact_number_match = None
         if search:
-            queryset = queryset.filter(
+            search_query = (
                 Q(title__icontains=search) |
                 Q(tags__name__icontains=search)
             )
+            clean_search = search.lstrip('#').strip()
+            if clean_search.isdigit():
+                q_num = int(clean_search)
+                search_query |= Q(question_number=q_num)
+                exact_number_match = q_num
+            queryset = queryset.filter(search_query)
 
         status_filters = multi_values('status')
         user = get_request_user(request)
@@ -498,7 +505,13 @@ class ProblemByCompanyView(APIView):
                 'difficulty_desc': ('-difficulty', 'question_number'),
             }
             order_fields = order_map.get(sort, ('-frequency', 'question_number'))
-            queryset = queryset.order_by(*order_fields)
+            if exact_number_match is not None:
+                queryset = queryset.order_by(
+                    Case(When(question_number=exact_number_match, then=0), default=1),
+                    *order_fields
+                )
+            else:
+                queryset = queryset.order_by(*order_fields)
 
         paginator = ProblemPagination()
         page = paginator.paginate_queryset(queryset, request)

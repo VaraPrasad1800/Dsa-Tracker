@@ -34,7 +34,7 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerRunning, setTimerRunning] = useState(false);
   const timerTickRef = useRef(Date.now());
-  const [activeSubTab, setActiveSubTab] = useState('notes'); // 'notes' | 'history' | 'related'
+  const [activeSubTab, setActiveSubTab] = useState(problem?.description ? 'statement' : 'notes'); // 'statement' | 'notes' | 'history' | 'related'
   const [historyData, setHistoryData] = useState(null);
   const [saving, setSaving] = useState(false);
   const { showTags } = useTags();
@@ -47,6 +47,7 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
       setCodeSolution(p?.code_solution || '');
       setTimerSeconds(0);
       setTimerRunning(false);
+      setActiveSubTab(problem.description ? 'statement' : 'notes');
 
       if (p?.id) {
         progressApi
@@ -358,6 +359,17 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
           {/* Sub Navigation Tabs */}
           <div className="flex items-center gap-2 border-b border-white/[0.07] pb-2">
             <button
+              onClick={() => setActiveSubTab('statement')}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
+                activeSubTab === 'statement'
+                  ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" /> Problem Statement
+            </button>
+
+            <button
               onClick={() => setActiveSubTab('notes')}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ${
                 activeSubTab === 'notes'
@@ -365,7 +377,7 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <FileText className="h-3.5 w-3.5" /> Solution Notes & Code
+              <Code className="h-3.5 w-3.5" /> Solution Notes & Code
             </button>
 
             <button
@@ -390,6 +402,53 @@ export default function ProblemDetailModal({ problem, onClose, onSaveProgress, o
               <History className="h-3.5 w-3.5" /> Review Transitions
             </button>
           </div>
+
+          {/* Sub Tab: Problem Statement */}
+          {activeSubTab === 'statement' && (
+            <div className="space-y-4 text-sm text-slate-200 leading-relaxed">
+              {/* Description */}
+              <div className="p-4 rounded-2xl bg-black/30 border border-white/[0.06] space-y-2">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Description
+                </h4>
+                <div className="whitespace-pre-line text-slate-300 text-xs sm:text-sm">
+                  {problem.description || 'No description provided.'}
+                </div>
+              </div>
+
+              {/* Examples */}
+              {problem.examples && problem.examples.length > 0 && (
+                <div className="p-4 rounded-2xl bg-black/30 border border-white/[0.06] space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Examples
+                  </h4>
+                  <div className="space-y-2">
+                    {problem.examples.map((ex, idx) => (
+                      <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.04] font-mono text-xs text-slate-300 whitespace-pre-wrap">
+                        {typeof ex === 'string' ? ex : JSON.stringify(ex, null, 2)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Constraints */}
+              {problem.constraints && problem.constraints.length > 0 && (
+                <div className="p-4 rounded-2xl bg-black/30 border border-white/[0.06] space-y-2">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Constraints
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1 text-xs font-mono text-slate-400">
+                    {problem.constraints.map((c, idx) => (
+                      <li key={idx} className="leading-relaxed">
+                        {typeof c === 'string' ? c : JSON.stringify(c)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Sub Tab: Notes & Code */}
           {activeSubTab === 'notes' && (

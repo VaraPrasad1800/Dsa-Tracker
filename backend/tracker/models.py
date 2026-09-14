@@ -622,3 +622,18 @@ class RefreshToken(models.Model):
         status_str = 'Revoked' if self.revoked else 'Active'
         return f'{self.user.username} - {status_str} (expires {self.expires_at})'
 
+
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from django.core.cache import cache
+
+@receiver([post_save, post_delete], sender=Company)
+def invalidate_company_cache(sender, **kwargs):
+    try:
+        cache.delete_pattern('company_list_unfiltered_page_1*')
+    except Exception:
+        try:
+            cache.delete('company_list_unfiltered_page_1_anon')
+        except Exception:
+            pass
+

@@ -27,21 +27,54 @@ import TagToggle from './common/TagToggle';
 import NotificationCenter from './common/NotificationCenter';
 
 const NAV_ITEMS = [
-  { id: 'problems',    label: 'Problem Bank',   icon: Code2,         shortcut: 'P' },
-  { id: 'challenges',  label: 'Challenges',     icon: Trophy,        shortcut: 'H' },
-  { id: 'interview',   label: 'Interview Mode', icon: Video,         shortcut: 'I' },
-  { id: 'companies',   label: 'Companies',      icon: Building2,     shortcut: 'C' },
-  { id: 'review',      label: "Today's Review", icon: CalendarClock, shortcut: 'R' },
-  { id: 'analytics',   label: 'Analytics',      icon: BarChart3,     shortcut: 'A' },
-  { id: 'achievements',label: 'Achievements',   icon: Award,         shortcut: 'M' },
-  { id: 'study-plan',  label: 'Study Plan',     icon: CalendarCheck, shortcut: 'S' },
+  { id: 'problems',    path: '/problems',       label: 'Problem Bank',   icon: Code2,         shortcut: 'P' },
+  { id: 'challenges',  path: '/challenges',     label: 'Challenges',     icon: Trophy,        shortcut: 'H' },
+  { id: 'interview',   path: '/interview-mode', label: 'Interview Mode', icon: Video,         shortcut: 'I' },
+  { id: 'companies',   path: '/companies',      label: 'Companies',      icon: Building2,     shortcut: 'C' },
+  { id: 'review',      path: '/today-review',   label: "Today's Review", icon: CalendarClock, shortcut: 'R' },
+  { id: 'analytics',   path: '/analytics',      label: 'Analytics',      icon: BarChart3,     shortcut: 'A' },
+  { id: 'achievements',path: '/achievements',   label: 'Achievements',   icon: Award,         shortcut: 'M' },
+  { id: 'study-plan',  path: '/study-plan',     label: 'Study Plan',     icon: CalendarCheck, shortcut: 'S' },
 ];
 
-export default function Navbar({ activeTab, setActiveTab, dueCount = 0, onOpenShortcuts }) {
+export default function Navbar({ activeTab: activeTabProp, setActiveTab, dueCount = 0, onOpenShortcuts }) {
   const { user, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+
+  // Derive active tab from current URL pathname
+  const pathname = location.pathname;
+  let currentTab = activeTabProp;
+  if (!currentTab) {
+    if (pathname.startsWith('/problems') || pathname === '/') currentTab = 'problems';
+    else if (pathname.startsWith('/challenges')) currentTab = 'challenges';
+    else if (pathname.startsWith('/interview')) currentTab = 'interview';
+    else if (pathname.startsWith('/companies')) currentTab = 'companies';
+    else if (pathname.startsWith('/today-review') || pathname.startsWith('/review')) currentTab = 'review';
+    else if (pathname.startsWith('/analytics')) currentTab = 'analytics';
+    else if (pathname.startsWith('/achievements')) currentTab = 'achievements';
+    else if (pathname.startsWith('/study-plan')) currentTab = 'study-plan';
+    else currentTab = 'problems';
+  }
+
+  const handleNavClick = (item) => {
+    navigate(item.path);
+    if (setActiveTab) setActiveTab(item.id);
+  };
+
+  const handleNotificationNavigate = (target) => {
+    const tabItem = NAV_ITEMS.find((n) => n.id === target);
+    if (tabItem) {
+      navigate(tabItem.path);
+    } else if (target && target.startsWith('/')) {
+      navigate(target);
+    } else if (target) {
+      navigate(`/${target}`);
+    }
+    if (setActiveTab) setActiveTab(target);
+  };
 
   const handleLogout = (e) => {
     e.preventDefault();
@@ -79,22 +112,22 @@ export default function Navbar({ activeTab, setActiveTab, dueCount = 0, onOpenSh
             )}
           </AnimatePresence>
         </div>
-        {!collapsed && <NotificationCenter onNavigateTab={setActiveTab} />}
+        {!collapsed && <NotificationCenter onNavigateTab={handleNotificationNavigate} />}
       </div>
 
       {/* Nav Items */}
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = currentTab === item.id;
           const hasBadge = item.id === 'review' && dueCount > 0;
 
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => handleNavClick(item)}
               title={collapsed ? item.label : undefined}
-              className={`nav-item w-full ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-2' : ''}`}
+              className={`nav-item w-full ${isActive ? 'active' : ''} ${collapsed ? 'justify-center px-2' : ''} cursor-pointer`}
             >
               <div className="relative shrink-0">
                 <Icon

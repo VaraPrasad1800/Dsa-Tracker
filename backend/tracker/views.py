@@ -2,7 +2,8 @@ import logging
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import Count, Q, Case, When, IntegerField
+from django.db.models import Count, Q, Case, When, IntegerField, Prefetch
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
@@ -87,6 +88,11 @@ class ProblemPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = 'page_size'
     max_page_size = 100
+
+class CompanyPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
 
 class ProblemListView(APIView):
     permission_classes = [AllowAny]
@@ -433,7 +439,21 @@ class TagListView(APIView):
 
     def get(self, request):
         tags = Tag.objects.annotate(problem_count=Count('problems')).order_by('name')
-        serializer = TagSerializer(tags, many=True, context={'request': request})
+        user = get_request_user(request)
+        solved_counts = {}
+        if user:
+            rows = (
+                UserProblemProgress.objects
+                .filter(user=user, status='SOLVED', problem__tags__isnull=False)
+                .values('problem__tags')
+                .annotate(solved=Count('id', distinct=True))
+            )
+            solved_counts = {row['problem__tags']: row['solved'] for row in rows}
+
+        serializer = TagSerializer(
+            tags, many=True,
+            context={'request': request, 'solved_counts': solved_counts}
+        )
         return Response(serializer.data)
 
 class ProblemByCompanyView(APIView):
@@ -590,16 +610,71 @@ class ProblemByCompanyView(APIView):
         return response
 
 
+COMPANY_LIST_CACHE_KEY_PREFIX = 'company_list_unfiltered_page_1'
+
 class CompanyListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
         search = request.query_params.get('search', '').strip()
+        page_param = request.query_params.get('page')
+        is_unfiltered_page_1 = not search and page_param in (None, '', '1')
+        user = get_request_user(request)
+
+        cache_key = f"{COMPANY_LIST_CACHE_KEY_PREFIX}_{user.id if user else 'anon'}" if is_unfiltered_page_1 else None
+        if cache_key:
+            try:
+                cached_data = cache.get(cache_key)
+                if cached_data is not None:
+                    return Response(cached_data)
+            except Exception as e:
+                logger.warning(f"Company list cache get failed: {e}")
+
         companies = Company.objects.annotate(problem_count=Count('problems'))
         if search:
             companies = companies.filter(Q(name__icontains=search) | Q(slug__icontains=search))
         companies = companies.order_by('name')
-        serializer = CompanySerializer(companies, many=True, context={'request': request})
+
+        solved_counts = {}
+        if user:
+            rows = (
+                UserProblemProgress.objects
+                .filter(user=user, status='SOLVED', problem__companies__isnull=False)
+                .values('problem__companies')
+                .annotate(solved=Count('id', distinct=True))
+            )
+            solved_counts = {row['problem__companies']: row['solved'] for row in rows}
+
+        if request.query_params.get('pagination') == 'none':
+            serializer = CompanySerializer(
+                companies, many=True,
+                context={'request': request, 'solved_counts': solved_counts}
+            )
+            return Response(serializer.data)
+
+        paginator = CompanyPagination()
+        page = paginator.paginate_queryset(companies, request)
+
+        serializer = CompanySerializer(
+            page if page is not None else companies,
+            many=True,
+            context={'request': request, 'solved_counts': solved_counts}
+        )
+
+        if page is not None:
+            response = paginator.get_paginated_response(serializer.data)
+            if cache_key:
+                try:
+                    cache.set(cache_key, response.data, timeout=6 * 3600)
+                except Exception as e:
+                    logger.warning(f"Company list cache set failed: {e}")
+            return response
+
+        if cache_key:
+            try:
+                cache.set(cache_key, serializer.data, timeout=6 * 3600)
+            except Exception as e:
+                logger.warning(f"Company list cache set failed: {e}")
         return Response(serializer.data)
 
 
@@ -916,14 +991,36 @@ class DueTodayView(APIView):
     def get(self, request):
         user = get_request_user(request)
         now = timezone.now()
-        due_progresses = UserProblemProgress.objects.filter(
-            user=user,
-            next_review_date__lte=now
-        ).select_related('problem').prefetch_related('problem__tags', 'problem__companies').order_by('current_box', 'last_attempted')
+        due_progresses = (
+            UserProblemProgress.objects.filter(
+                user=user,
+                next_review_date__lte=now
+            )
+            .select_related('problem')
+            .prefetch_related('problem__tags', 'problem__companies')
+            .order_by('current_box', 'last_attempted')
+        )
+
+        progress_list = list(due_progresses)
+        problem_ids = [p.problem_id for p in progress_list]
+        user_progress_map = {p.problem_id: p for p in progress_list}
+        try:
+            user_profile = user.profile if user else None
+        except Exception:
+            user_profile = None
+        bookmarked_id_set = set(
+            user_profile.bookmarked_problems.filter(id__in=problem_ids).values_list('id', flat=True)
+        ) if user_profile else set()
+
+        serializer_context = {
+            'request': request,
+            'user_progress_map': user_progress_map,
+            'bookmarked_id_set': bookmarked_id_set,
+        }
 
         results = []
-        for p in due_progresses:
-            prob_data = ProblemSerializer(p.problem, context={'request': request}).data
+        for p in progress_list:
+            prob_data = ProblemListSerializer(p.problem, context=serializer_context).data
             results.append({
                 'progress_id': p.id,
                 'current_box': p.current_box,
@@ -1809,7 +1906,16 @@ class InterviewSessionListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        sessions = InterviewSession.objects.filter(user=request.user)[:20]
+        sessions = (
+            InterviewSession.objects.filter(user=request.user)
+            .select_related('company')
+            .prefetch_related(
+                Prefetch(
+                    'interview_problems',
+                    queryset=InterviewProblem.objects.select_related('problem')
+                )
+            )[:20]
+        )
         serializer = InterviewSessionSerializer(sessions, many=True)
         return Response({'sessions': serializer.data})
 

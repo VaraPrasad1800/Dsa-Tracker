@@ -1,16 +1,36 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Code2, CalendarClock, BarChart3, CalendarCheck, Building2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
-  { id: 'problems',    label: 'Problems',  icon: Code2 },
-  { id: 'companies',   label: 'Companies', icon: Building2 },
-  { id: 'review',      label: 'Review',    icon: CalendarClock },
-  { id: 'analytics',   label: 'Analytics', icon: BarChart3 },
-  { id: 'study-plan',  label: 'Plan',      icon: CalendarCheck },
+  { id: 'problems',    path: '/problems',     label: 'Problems',  icon: Code2 },
+  { id: 'companies',   path: '/companies',    label: 'Companies', icon: Building2 },
+  { id: 'review',      path: '/today-review', label: 'Review',    icon: CalendarClock },
+  { id: 'analytics',   path: '/analytics',    label: 'Analytics', icon: BarChart3 },
+  { id: 'study-plan',  path: '/study-plan',   label: 'Plan',      icon: CalendarCheck },
 ];
 
-export default function MobileNav({ activeTab, setActiveTab, dueCount = 0 }) {
+export default function MobileNav({ activeTab: activeTabProp, setActiveTab, dueCount = 0 }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const pathname = location.pathname;
+  let currentTab = activeTabProp;
+  if (!currentTab) {
+    if (pathname.startsWith('/problems') || pathname === '/') currentTab = 'problems';
+    else if (pathname.startsWith('/companies')) currentTab = 'companies';
+    else if (pathname.startsWith('/today-review') || pathname.startsWith('/review')) currentTab = 'review';
+    else if (pathname.startsWith('/analytics')) currentTab = 'analytics';
+    else if (pathname.startsWith('/study-plan')) currentTab = 'study-plan';
+    else currentTab = 'problems';
+  }
+
+  const handleNavClick = (item) => {
+    navigate(item.path);
+    if (setActiveTab) setActiveTab(item.id);
+  };
+
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50">
       {/* Glass background */}
@@ -24,14 +44,14 @@ export default function MobileNav({ activeTab, setActiveTab, dueCount = 0 }) {
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const isActive = currentTab === item.id;
           const hasBadge = item.id === 'review' && dueCount > 0;
 
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200"
+              onClick={() => handleNavClick(item)}
+              className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 cursor-pointer"
             >
               {/* Active pill indicator */}
               {isActive && (

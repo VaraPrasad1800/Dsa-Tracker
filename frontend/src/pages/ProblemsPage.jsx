@@ -1,4 +1,5 @@
 import React, { useState, Suspense, lazy } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -36,12 +37,18 @@ const SORT_OPTIONS = [
 export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, initialProblemId }) {
   const queryClient = useQueryClient();
 
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const topicParam = searchParams.get('topic');
+  const effectiveTopic = activeTopicFilter || location.state?.activeTopicFilter || topicParam || '';
+  const effectiveProblemId = initialProblemId || location.state?.targetProblemId;
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filters, setFilters] = useState({
     difficulty: '',
     status: '',
-    topic: activeTopicFilter || '',
+    topic: effectiveTopic,
     company: '',
     bookmarked: '',
   });
@@ -52,22 +59,22 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState(null);
 
-  // Sync external initial problem (e.g. from Review or Challenges)
+  // Sync external initial problem (e.g. from Review, Challenges, or deep link)
   React.useEffect(() => {
-    if (initialProblemId) {
-      problemsApi.getProblem(initialProblemId)
+    if (effectiveProblemId) {
+      problemsApi.getProblem(effectiveProblemId)
         .then((res) => setSelectedProblem(res.data))
         .catch(() => {});
     }
-  }, [initialProblemId]);
+  }, [effectiveProblemId]);
 
   // Sync external topic filter
   React.useEffect(() => {
-    if (activeTopicFilter) {
-      setFilters((prev) => ({ ...prev, topic: activeTopicFilter }));
+    if (effectiveTopic) {
+      setFilters((prev) => ({ ...prev, topic: effectiveTopic }));
       setPage(1);
     }
-  }, [activeTopicFilter]);
+  }, [effectiveTopic]);
 
   // Debounce search by 250ms to prevent API flooding on every keystroke
   React.useEffect(() => {
@@ -113,13 +120,14 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
   });
 
   // Companies query
-  const { data: companies = [] } = useQuery({
-    queryKey: ['companies'],
+  const { data: rawCompanies = [] } = useQuery({
+    queryKey: ['companies', 'filter-list'],
     queryFn: async () => {
-      const res = await problemsApi.getCompanies();
+      const res = await problemsApi.getCompanies({ pagination: 'none' });
       return res.data;
     },
   });
+  const companies = Array.isArray(rawCompanies) ? rawCompanies : (rawCompanies?.results || []);
 
   // Stats query
   const { data: userStats } = useQuery({

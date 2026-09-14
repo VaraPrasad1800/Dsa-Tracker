@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Building2, SlidersHorizontal, Sparkles } from 'lucide-react';
@@ -18,6 +19,8 @@ const SORT_OPTIONS = [
 ];
 
 export default function CompanyProblemsPage({ company, onBack, onNavigateToProblems, onSolve }) {
+  const { companySlug } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -33,10 +36,10 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState(null);
 
-  const companyId = company.slug || company.id;
+  const targetSlug = company?.slug || company?.id || companySlug;
 
   const { data: problemsData, isLoading: loadingProblems } = useQuery({
-    queryKey: ['company-problems', companyId, filters, search, sort, page],
+    queryKey: ['company-problems', targetSlug, filters, search, sort, page],
     queryFn: async () => {
       const params = {
         page,
@@ -47,9 +50,10 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
         bookmarked: filters.bookmarked || undefined,
         search: search || undefined,
       };
-      const res = await problemsApi.getCompanyProblems(companyId, params);
+      const res = await problemsApi.getCompanyProblems(targetSlug, params);
       return res.data;
     },
+    enabled: !!targetSlug,
   });
 
   const { data: tags = [] } = useQuery({
@@ -96,7 +100,32 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
     updateProgressMutation.mutate({ problem_id: problemId, status: newStatus });
   };
 
-  const responseCompany = problemsData?.company || company;
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigate('/companies');
+    }
+  };
+
+  const handleNavigateToProblems = () => {
+    if (onNavigateToProblems) {
+      onNavigateToProblems();
+    } else {
+      navigate('/problems');
+    }
+  };
+
+  const handleSolve = (prob) => {
+    if (onSolve) {
+      onSolve(prob);
+    } else {
+      const pId = typeof prob === 'object' ? prob.id : prob;
+      navigate('/problems', { state: { targetProblemId: pId } });
+    }
+  };
+
+  const responseCompany = problemsData?.company || company || { name: companySlug || 'Company' };
   const totalCount = problemsData?.count || 0;
   const solvedCount =
     responseCompany?.user_progress?.solved ?? company?.user_progress?.solved ?? 0;
@@ -107,8 +136,8 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
-            onClick={onBack}
-            className="p-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white hover:border-white/[0.15] transition shrink-0"
+            onClick={handleBack}
+            className="p-2.5 rounded-xl border border-white/[0.08] bg-white/[0.03] text-slate-400 hover:text-white hover:border-white/[0.15] transition shrink-0 cursor-pointer"
             title="Back to all companies"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -116,7 +145,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
           <div className="min-w-0">
             <h1 className="text-2xl font-extrabold text-white flex items-center gap-2.5 truncate">
               <Building2 className="h-6 w-6 text-indigo-400 shrink-0" />
-              {responseCompany.name} Problem Bank
+              {responseCompany?.name || 'Company'} Problem Bank
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
               {totalCount} problems curated •{' '}
@@ -126,8 +155,8 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
         </div>
 
         <button
-          onClick={onNavigateToProblems}
-          className="btn-secondary text-xs px-3.5 py-2 self-start sm:self-auto"
+          onClick={handleNavigateToProblems}
+          className="btn-secondary text-xs px-3.5 py-2 self-start sm:self-auto cursor-pointer"
         >
           View Full Problem Bank
         </button>
@@ -141,7 +170,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
           onClearFilters={handleClearFilters}
           counts={problemsData?.counts}
           availableTags={tags}
-          availableCompanies={[responseCompany]}
+          availableCompanies={responseCompany?.name ? [responseCompany] : []}
           hideCompanies
           isOpenMobile={isMobileFilterOpen}
           onCloseMobile={() => setIsMobileFilterOpen(false)}
@@ -186,7 +215,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
 
             <button
               onClick={() => setIsMobileFilterOpen(true)}
-              className="lg:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200"
+              className="lg:hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 cursor-pointer"
               style={{
                 background: 'rgba(16, 16, 28, 0.75)',
                 border: '1px solid rgba(255, 255, 255, 0.08)',
@@ -205,7 +234,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
             onPageChange={(newPage) => setPage(newPage)}
             onSelectProblem={(prob) => setSelectedProblem(prob)}
             onQuickUpdateStatus={handleQuickUpdateStatus}
-            onSolve={onSolve}
+            onSolve={handleSolve}
             loading={loadingProblems}
           />
         </div>
@@ -217,7 +246,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
           problem={selectedProblem}
           onClose={() => setSelectedProblem(null)}
           onSaveProgress={(data) => updateProgressMutation.mutate(data)}
-          onSolve={onSolve}
+          onSolve={handleSolve}
         />
       )}
     </div>

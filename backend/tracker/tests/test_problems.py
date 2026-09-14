@@ -83,21 +83,25 @@ class ProblemTrackingTests(TestCase):
         # List all companies
         res = self.client.get(reverse('company-list'))
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.data), 3)
+        results = res.data.get('results', res.data)
+        self.assertEqual(len(results), 3)
 
         # Search exact
         res_amz = self.client.get(reverse('company-list') + '?search=Amazon')
-        self.assertEqual(len(res_amz.data), 1)
-        self.assertEqual(res_amz.data[0]['name'], 'Amazon')
+        results_amz = res_amz.data.get('results', res_amz.data)
+        self.assertEqual(len(results_amz), 1)
+        self.assertEqual(results_amz[0]['name'], 'Amazon')
 
         # Search case-insensitive partial with whitespace
         res_part = self.client.get(reverse('company-list') + '?search=  mic  ')
-        self.assertEqual(len(res_part.data), 1)
-        self.assertEqual(res_part.data[0]['name'], 'Microsoft')
+        results_part = res_part.data.get('results', res_part.data)
+        self.assertEqual(len(results_part), 1)
+        self.assertEqual(results_part[0]['name'], 'Microsoft')
 
         # Search non-existent
         res_none = self.client.get(reverse('company-list') + '?search=NonExistentCompany')
-        self.assertEqual(len(res_none.data), 0)
+        results_none = res_none.data.get('results', res_none.data)
+        self.assertEqual(len(results_none), 0)
 
     def test_problem_sorting_options(self):
         Problem.objects.create(

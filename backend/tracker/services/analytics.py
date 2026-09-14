@@ -189,13 +189,20 @@ def get_user_topic_breakdown(user):
         total_problems=Count('problems', distinct=True)
     ).filter(total_problems__gt=0)
 
+    # Pre-aggregate solved counts per tag in 1 single query instead of 175 loop queries
+    solved_counts = {
+        row['problem__tags']: row['cnt']
+        for row in (
+            UserProblemProgress.objects
+            .filter(user=user, status='SOLVED', problem__tags__isnull=False)
+            .values('problem__tags')
+            .annotate(cnt=Count('problem_id', distinct=True))
+        )
+    }
+
     topics = []
     for tag in tags:
-        solved_count = UserProblemProgress.objects.filter(
-            user=user,
-            problem__tags=tag,
-            status='SOLVED'
-        ).count()
+        solved_count = solved_counts.get(tag.id, 0)
         percentage = round((solved_count / tag.total_problems) * 100, 1) if tag.total_problems > 0 else 0
         topics.append({
             'id': tag.id,
@@ -320,16 +327,30 @@ def get_topic_mastery_levels(user) -> dict:
         total_problems=Count('problems', distinct=True)
     ).filter(total_problems__gt=0)
 
+    # Pre-aggregate solved counts and medium/hard solved counts in 2 queries instead of 350 loop queries
+    solved_counts = {
+        row['problem__tags']: row['cnt']
+        for row in (
+            UserProblemProgress.objects
+            .filter(user=user, status='SOLVED', problem__tags__isnull=False)
+            .values('problem__tags')
+            .annotate(cnt=Count('problem_id', distinct=True))
+        )
+    }
+    medium_hard_counts = {
+        row['problem__tags']: row['cnt']
+        for row in (
+            UserProblemProgress.objects
+            .filter(user=user, status='SOLVED', problem__tags__isnull=False, problem__difficulty__in=['Medium', 'Hard'])
+            .values('problem__tags')
+            .annotate(cnt=Count('problem_id', distinct=True))
+        )
+    }
+
     topics = []
     for tag in tags:
-        progresses = UserProblemProgress.objects.filter(
-            user=user, problem__tags=tag, status='SOLVED'
-        ).select_related('problem')
-
-        solved_count = progresses.count()
-        medium_hard_solved = progresses.filter(
-            problem__difficulty__in=['Medium', 'Hard']
-        ).count()
+        solved_count = solved_counts.get(tag.id, 0)
+        medium_hard_solved = medium_hard_counts.get(tag.id, 0)
 
         level = _compute_mastery_level(solved_count, tag.total_problems, medium_hard_solved)
         pct = round((solved_count / tag.total_problems) * 100, 1) if tag.total_problems > 0 else 0

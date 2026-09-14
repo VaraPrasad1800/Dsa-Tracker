@@ -49,7 +49,7 @@ function ProtectedRoute() {
 function PublicRoute() {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return null;
-  return isAuthenticated ? <Navigate to="/" replace /> : <Outlet />;
+  return isAuthenticated ? <Navigate to="/problems" replace /> : <Outlet />;
 }
 
 function NavigateToLogin() {
@@ -83,11 +83,9 @@ function PageWrapper({ children }) {
   );
 }
 
-function AppContent() {
-  const [activeTab, setActiveTab] = useState('problems');
-  const [activeTopicFilter, setActiveTopicFilter] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState(null);
-  const [targetProblemId, setTargetProblemId] = useState(null);
+function AppLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
   const { data: dueData } = useQuery({
@@ -117,23 +115,6 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleSelectTopicFromAnalytics = (topicName) => {
-    setActiveTopicFilter(topicName);
-    setActiveTab('problems');
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab !== 'companies') setSelectedCompany(null);
-    if (tab !== 'problems') setTargetProblemId(null);
-  };
-
-  const handleSolveProblem = (prob) => {
-    const pId = typeof prob === 'object' ? prob.id : prob;
-    setTargetProblemId(pId);
-    setActiveTab('problems');
-  };
-
   return (
     <div
       className="min-h-screen flex"
@@ -141,8 +122,6 @@ function AppContent() {
     >
       {/* Sidebar Navigation */}
       <Navbar
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
         dueCount={dueCount}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
@@ -152,79 +131,15 @@ function AppContent() {
         {/* Reminder Banner */}
         <ReminderBanner
           dueCount={dueCount}
-          onStartReview={() => handleTabChange('review')}
+          onStartReview={() => navigate('/today-review')}
         />
 
         {/* Content Area */}
         <main className="flex-1 px-4 sm:px-6 lg:px-6 pb-20 lg:pb-6">
           <AnimatePresence mode="wait">
-            {activeTab === 'problems' && (
-              <PageWrapper key="problems">
-                <ProblemsPage
-                  activeTopicFilter={activeTopicFilter}
-                  onSelectTopicFilter={setActiveTopicFilter}
-                  initialProblemId={targetProblemId}
-                />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'challenges' && (
-              <PageWrapper key="challenges">
-                <ChallengesPage onSolve={handleSolveProblem} />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'interview' && (
-              <PageWrapper key="interview">
-                <InterviewModePage
-                  onNavigateToProblem={handleSolveProblem}
-                />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'achievements' && (
-              <PageWrapper key="achievements">
-                <AchievementsPage />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'companies' && !selectedCompany && (
-              <PageWrapper key="companies">
-                <CompaniesPage onSelectCompany={setSelectedCompany} />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'companies' && selectedCompany && (
-              <PageWrapper key="company-problems">
-                <CompanyProblemsPage
-                  company={selectedCompany}
-                  onBack={() => setSelectedCompany(null)}
-                  onNavigateToProblems={() => handleTabChange('problems')}
-                  onSolve={handleSolveProblem}
-                />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'review' && (
-              <PageWrapper key="review">
-                <TodaysReviewPage
-                  onNavigateToProblems={() => handleTabChange('problems')}
-                  onSolve={handleSolveProblem}
-                />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'analytics' && (
-              <PageWrapper key="analytics">
-                <AnalyticsPage onSelectFilterTopic={handleSelectTopicFromAnalytics} />
-              </PageWrapper>
-            )}
-
-            {activeTab === 'study-plan' && (
-              <PageWrapper key="study-plan">
-                <StudyPlanPage onSolve={handleSolveProblem} />
-              </PageWrapper>
-            )}
+            <PageWrapper key={location.pathname}>
+              <Outlet />
+            </PageWrapper>
           </AnimatePresence>
         </main>
 
@@ -239,8 +154,6 @@ function AppContent() {
 
       {/* Mobile Bottom Navigation */}
       <MobileNav
-        activeTab={activeTab}
-        setActiveTab={handleTabChange}
         dueCount={dueCount}
       />
 
@@ -250,6 +163,98 @@ function AppContent() {
         onClose={() => setIsShortcutsOpen(false)}
       />
     </div>
+  );
+}
+
+function ProblemsRoute() {
+  return <ProblemsPage />;
+}
+
+function ChallengesRoute() {
+  const navigate = useNavigate();
+  return (
+    <ChallengesPage
+      onSolve={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
+  );
+}
+
+function InterviewModeRoute() {
+  const navigate = useNavigate();
+  return (
+    <InterviewModePage
+      onNavigateToProblem={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
+  );
+}
+
+function CompaniesRoute() {
+  return <CompaniesPage />;
+}
+
+function CompanyProblemsRoute() {
+  const navigate = useNavigate();
+  return (
+    <CompanyProblemsPage
+      onBack={() => navigate('/companies')}
+      onNavigateToProblems={() => navigate('/problems')}
+      onSolve={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
+  );
+}
+
+function TodaysReviewRoute() {
+  const navigate = useNavigate();
+  return (
+    <TodaysReviewPage
+      onNavigateToProblems={() => navigate('/problems')}
+      onSolve={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
+  );
+}
+
+function AnalyticsRoute() {
+  const navigate = useNavigate();
+  return (
+    <AnalyticsPage
+      onSelectFilterTopic={(topicName) => {
+        navigate(`/problems?topic=${encodeURIComponent(topicName)}`, {
+          state: { activeTopicFilter: topicName },
+        });
+      }}
+      onSelectProblem={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
+  );
+}
+
+function AchievementsRoute() {
+  return <AchievementsPage />;
+}
+
+function StudyPlanRoute() {
+  const navigate = useNavigate();
+  return (
+    <StudyPlanPage
+      onSolve={(prob) => {
+        const id = typeof prob === 'object' ? prob.id : prob;
+        navigate('/problems', { state: { targetProblemId: id } });
+      }}
+    />
   );
 }
 
@@ -273,11 +278,26 @@ function MainRoutes() {
         </Route>
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<AppContent />} />
-          <Route path="problems/:id/solution" element={<SolutionPage />} />
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/problems" replace />} />
+            <Route path="/problems" element={<ProblemsRoute />} />
+            <Route path="/companies" element={<CompaniesRoute />} />
+            <Route path="/companies/:companySlug" element={<CompanyProblemsRoute />} />
+            <Route path="/challenges" element={<ChallengesRoute />} />
+            <Route path="/interview-mode" element={<InterviewModeRoute />} />
+            <Route path="/today-review" element={<TodaysReviewRoute />} />
+            <Route path="/analytics" element={<AnalyticsRoute />} />
+            <Route path="/achievements" element={<AchievementsRoute />} />
+            <Route path="/study-plan" element={<StudyPlanRoute />} />
+            <Route path="/problems/:id/solution" element={<SolutionPage />} />
+
+            {/* Backwards-compatibility aliases */}
+            <Route path="/interview" element={<Navigate to="/interview-mode" replace />} />
+            <Route path="/review" element={<Navigate to="/today-review" replace />} />
+          </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/problems" replace />} />
       </Routes>
     </RouteErrorBoundary>
   );

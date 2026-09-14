@@ -24,6 +24,9 @@ class TagSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'color', 'category', 'problem_count', 'user_progress']
 
     def get_user_progress(self, obj):
+        solved_counts = self.context.get('solved_counts')
+        if solved_counts is not None:
+            return {'solved': solved_counts.get(obj.id, 0)}
         request = self.context.get('request')
         user = get_serializer_user(request)
         result = {'solved': 0}
@@ -48,6 +51,9 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'problem_count', 'user_progress']
 
     def get_user_progress(self, obj):
+        solved_counts = self.context.get('solved_counts')
+        if solved_counts is not None:
+            return {'solved': solved_counts.get(obj.id, 0)}
         request = self.context.get('request')
         user = get_serializer_user(request)
         result = {'solved': 0}

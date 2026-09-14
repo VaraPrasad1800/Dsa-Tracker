@@ -87,6 +87,7 @@ if os.environ.get('POSTGRES_DB') and not IS_TESTING and os.environ.get('USE_SQLI
             'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
             'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
             'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', 600)),
         }
     }
 else:
@@ -99,7 +100,20 @@ else:
 
 # Cache Configuration: Redis with LocMemCache fallback
 REDIS_URL = os.environ.get('REDIS_URL')
+use_redis = False
 if REDIS_URL and not IS_TESTING:
+    try:
+        import socket
+        from urllib.parse import urlparse
+        parsed = urlparse(REDIS_URL)
+        host = parsed.hostname or 'localhost'
+        port = parsed.port or 6379
+        with socket.create_connection((host, port), timeout=0.5):
+            use_redis = True
+    except Exception:
+        use_redis = False
+
+if use_redis:
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.redis.RedisCache',

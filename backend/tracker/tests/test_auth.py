@@ -178,13 +178,15 @@ class EnhancedProblemsTests(TestCase):
             'problem_id': str(self.p1.id), 'status': 'SOLVED'
         }, format='json', **self.auth)
         res = self.client.get(reverse('company-list'), **self.auth)
-        google = next(c for c in res.data if c['slug'] == 'google')
+        companies = res.data.get('results', res.data)
+        google = next(c for c in companies if c['slug'] == 'google')
         self.assertEqual(google['problem_count'], 2)
         self.assertEqual(google['user_progress']['solved'], 1)
 
     def test_company_list_anonymous_has_zero_solved(self):
         res = self.client.get(reverse('company-list'))
-        google = next(c for c in res.data if c['slug'] == 'google')
+        companies = res.data.get('results', res.data)
+        google = next(c for c in companies if c['slug'] == 'google')
         self.assertEqual(google['user_progress']['solved'], 0)
 
     def test_bookmark_toggle_and_list(self):

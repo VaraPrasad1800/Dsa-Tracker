@@ -33,7 +33,7 @@ export default function InterviewModePage({ onNavigateToProblem }) {
   const { data: companiesData } = useQuery({
     queryKey: ['companies_list'],
     queryFn: async () => {
-      const res = await problemsApi.getCompanies();
+      const res = await problemsApi.getCompanies({ pagination: 'none' });
       return res.data;
     },
   });
@@ -47,7 +47,7 @@ export default function InterviewModePage({ onNavigateToProblem }) {
     },
   });
 
-  const companies = companiesData || [];
+  const companies = Array.isArray(companiesData) ? companiesData : (companiesData?.results || []);
   const pastSessions = sessionsData?.sessions || [];
 
   // Find active session on load

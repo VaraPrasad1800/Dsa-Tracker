@@ -352,7 +352,7 @@ export default function FilterSidebar({
   return (
     <>
       {/* Desktop Sticky Sidebar */}
-      <aside className="hidden lg:block w-60 shrink-0 glass-card rounded-2xl p-4 self-start sticky top-6 border border-white/[0.07]">
+      <aside className="hidden lg:block w-56 shrink-0 glass-card rounded-2xl p-4 self-start sticky top-6 border border-white/[0.07]">
         {sidebarContent}
       </aside>
 

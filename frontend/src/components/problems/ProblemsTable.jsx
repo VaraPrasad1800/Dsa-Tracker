@@ -36,13 +36,13 @@ export default function ProblemsTable({
   const getDifficultyBadge = (difficulty) => {
     switch (difficulty) {
       case 'Easy':
-        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-full badge-easy">Easy</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full badge-easy">Easy</span>;
       case 'Medium':
-        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-full badge-medium">Medium</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full badge-medium">Medium</span>;
       case 'Hard':
-        return <span className="px-2.5 py-0.5 text-[11px] font-semibold rounded-full badge-hard">Hard</span>;
+        return <span className="px-2 py-0.5 text-[11px] font-semibold rounded-full badge-hard">Hard</span>;
       default:
-        return <span className="px-2.5 py-0.5 text-[11px] rounded-full bg-slate-800 text-slate-400">{difficulty}</span>;
+        return <span className="px-2 py-0.5 text-[11px] rounded-full bg-slate-800 text-slate-400">{difficulty}</span>;
     }
   };
 
@@ -50,27 +50,27 @@ export default function ProblemsTable({
     switch (status) {
       case 'SOLVED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Solved
           </span>
         );
       case 'NEEDS_REVISIT':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">
             <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
             Revisit
           </span>
         );
       case 'SKIPPED':
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/60">
+          <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/60">
             Skipped
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 text-xs text-slate-500">
+          <span className="inline-flex items-center gap-1 text-[11px] text-slate-500">
             <Clock className="h-3 w-3" />
             Unsolved
           </span>
@@ -82,9 +82,9 @@ export default function ProblemsTable({
     if (!box) return <span className="text-xs text-slate-600">—</span>;
     const isDue = nextReview && new Date(nextReview) <= new Date();
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="inline-flex items-center justify-center gap-1">
         <span
-          className={`px-2 py-0.5 text-xs font-bold rounded-lg border ${
+          className={`px-1.5 py-0.5 text-[11px] font-bold rounded-md border ${
             box === 5
               ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
               : box >= 3
@@ -96,7 +96,7 @@ export default function ProblemsTable({
         </span>
         {isDue && (
           <span
-            className="h-2 w-2 rounded-full bg-rose-500 animate-ping"
+            className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping shrink-0"
             title="Due for Leitner review today!"
           />
         )}
@@ -111,13 +111,13 @@ export default function ProblemsTable({
           <thead>
             <tr>
               <th className="min-w-[150px]">Problem Title</th>
-              <th className="w-20 whitespace-nowrap">Difficulty</th>
-              <th className="max-w-[140px]">Topics</th>
-              <th className="hidden md:table-cell max-w-[120px]">Companies</th>
-              <th className="w-20 whitespace-nowrap text-center">Leitner Box</th>
-              <th className="hidden sm:table-cell w-14 text-center whitespace-nowrap">Solved</th>
-              <th className="w-24 whitespace-nowrap">Status</th>
-              <th className="text-right pr-4 whitespace-nowrap w-36">Actions</th>
+              <th className="w-16 whitespace-nowrap text-center">Difficulty</th>
+              <th className="w-28">Topics</th>
+              <th className="hidden md:table-cell w-24">Companies</th>
+              <th className="w-16 whitespace-nowrap text-center">Leitner Box</th>
+              <th className="hidden sm:table-cell w-12 text-center whitespace-nowrap">Solved</th>
+              <th className="w-20 whitespace-nowrap text-center">Status</th>
+              <th className="text-right pr-2 whitespace-nowrap w-36">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -159,13 +159,13 @@ export default function ProblemsTable({
           <thead>
             <tr>
               <th className="min-w-[150px]">Problem Title</th>
-              <th className="w-20 whitespace-nowrap">Difficulty</th>
-              <th className="max-w-[140px]">Topics</th>
-              <th className="hidden md:table-cell max-w-[120px]">Companies</th>
-              <th className="w-20 whitespace-nowrap text-center">Leitner Box</th>
-              <th className="hidden sm:table-cell w-14 text-center whitespace-nowrap">Solved</th>
-              <th className="w-24 whitespace-nowrap">Status</th>
-              <th className="text-right pr-4 whitespace-nowrap w-36">Actions</th>
+              <th className="w-16 whitespace-nowrap text-center">Difficulty</th>
+              <th className="w-28">Topics</th>
+              <th className="hidden md:table-cell w-24">Companies</th>
+              <th className="w-16 whitespace-nowrap text-center">Leitner Box</th>
+              <th className="hidden sm:table-cell w-12 text-center whitespace-nowrap">Solved</th>
+              <th className="w-20 whitespace-nowrap text-center">Status</th>
+              <th className="text-right pr-2 whitespace-nowrap w-36">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -183,13 +183,13 @@ export default function ProblemsTable({
                     className="hover:bg-white/[0.03] transition-colors group cursor-pointer"
                   >
                     {/* Title */}
-                    <td className="font-medium text-slate-100 py-2.5 px-3">
-                      <div className="flex items-center gap-2">
+                    <td className="font-medium text-slate-100 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className="font-mono text-indigo-400 font-bold text-xs shrink-0">
                           #{prob.question_number || prob.leetcode_id}
                         </span>
                         <span
-                          className="group-hover:text-indigo-300 transition-colors font-semibold truncate max-w-[180px] lg:max-w-[240px] xl:max-w-[340px] 2xl:max-w-none"
+                          className="group-hover:text-indigo-300 transition-colors font-semibold truncate flex-1 min-w-0"
                           title={prob.title}
                         >
                           {prob.title}
@@ -241,16 +241,16 @@ export default function ProblemsTable({
                     </td>
 
                     {/* Difficulty */}
-                    <td className="whitespace-nowrap w-20 py-2.5 px-3">
+                    <td className="whitespace-nowrap w-16 text-center">
                       {getDifficultyBadge(prob.difficulty)}
                     </td>
 
                     {/* Topics */}
-                    <td className="max-w-[140px] py-2.5 px-3">
+                    <td className="w-28">
                       {showTags && prob.tags?.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 max-w-[140px]">
+                        <div className="flex flex-wrap gap-1 max-w-[110px]">
                           {prob.tags.slice(0, 2).map((t) => (
-                            <TagBadge key={t.id} name={t.name} color={t.color} compact />
+                            <TagBadge key={t.id} name={t.name} color={t.color} compact className="max-w-[80px]" />
                           ))}
                           {prob.tags.length > 2 && (
                             <span className="text-[10px] text-slate-500 self-center">
@@ -264,12 +264,12 @@ export default function ProblemsTable({
                     </td>
 
                     {/* Companies */}
-                    <td className="hidden md:table-cell max-w-[120px] py-2.5 px-3">
-                      <div className="flex flex-wrap gap-1 max-w-[120px]">
+                    <td className="hidden md:table-cell w-24">
+                      <div className="flex flex-wrap gap-1 max-w-[96px]">
                         {prob.companies?.slice(0, 2).map((c) => (
                           <span
                             key={c.id}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-900/50 truncate max-w-[80px]"
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-900/50 truncate max-w-[68px]"
                             title={c.name}
                           >
                             {c.name}
@@ -284,26 +284,26 @@ export default function ProblemsTable({
                     </td>
 
                     {/* Leitner Box */}
-                    <td className="whitespace-nowrap w-20 text-center py-2.5 px-3">
+                    <td className="whitespace-nowrap w-16 text-center">
                       {getBoxBadge(box, nextReview)}
                     </td>
 
                     {/* Solved Count */}
-                    <td className="whitespace-nowrap hidden sm:table-cell w-14 text-center text-xs text-slate-400 py-2.5 px-3">
+                    <td className="whitespace-nowrap hidden sm:table-cell w-12 text-center text-xs text-slate-400">
                       {progress?.times_solved ? `${progress.times_solved}×` : '0×'}
                     </td>
 
                     {/* Status Badge */}
-                    <td className="whitespace-nowrap w-24 py-2.5 px-3">
+                    <td className="whitespace-nowrap w-20 text-center">
                       {getStatusBadge(status)}
                     </td>
 
                     {/* Inline Action Buttons */}
                     <td
-                      className="text-right pr-4 whitespace-nowrap w-36 py-2.5 px-3"
+                      className="text-right pr-2 whitespace-nowrap w-36"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex items-center justify-end gap-1">
                         {(prob.leetcode_url || prob.source_url) && (
                           <motion.a
                             whileTap={{ scale: 0.88 }}

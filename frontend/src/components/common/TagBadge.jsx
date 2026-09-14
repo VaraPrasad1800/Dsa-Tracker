@@ -21,7 +21,7 @@ const hexToRgba = (hex, alpha = 1) => {
  *   color   – hex color (e.g. "#3b82f6") — falls back to slate if absent
  *   compact – use smaller sizing (11px text vs 11px with slightly more padding)
  */
-export default function TagBadge({ name, color, compact = false }) {
+export default function TagBadge({ name, color, compact = false, className = '' }) {
   const baseColor = hexToRgba(color || '#94a3b8', 1);
   const bgColor = hexToRgba(color || '#94a3b8', 0.12);
   const borderColor = hexToRgba(color || '#94a3b8', 0.28);
@@ -35,9 +35,10 @@ export default function TagBadge({ name, color, compact = false }) {
       }}
       className={`inline-flex items-center rounded border font-medium leading-none select-none ${
         compact ? 'text-[10px] px-1.5 py-[3px]' : 'text-[11px] px-2 py-[3px]'
-      }`}
+      } ${className}`}
+      title={name}
     >
-      {name}
+      <span className="truncate">{name}</span>
     </span>
   );
 }

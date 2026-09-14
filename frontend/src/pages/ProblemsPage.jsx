@@ -279,7 +279,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
       />
 
       {/* Main Layout: Filters Sidebar + Search & Table/Cards */}
-      <div className="flex items-start gap-4 sm:gap-5">
+      <div className="flex items-start gap-3.5 sm:gap-4">
         {/* Filter Sidebar */}
         <FilterSidebar
           filters={filters}

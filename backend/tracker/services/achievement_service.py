@@ -16,7 +16,7 @@ required_streak_days       → user current streak >= threshold
 required_difficulty + required_solve_count → solved that many of that difficulty
 required_tag_slug + required_solve_count   → solved that many in that tag
 required_challenge_count   → completed challenges >= threshold
-required_accepted_count    → accepted submissions >= threshold
+required_accepted_count    → total solved problems >= threshold
 """
 
 from django.db import IntegrityError, transaction

@@ -56,7 +56,7 @@ export default function AnalyticsPage({ onSelectFilterTopic, onSelectProblem }) 
   });
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto py-6">
+    <div className="space-y-6 w-full py-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

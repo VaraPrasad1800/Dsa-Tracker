@@ -16,13 +16,11 @@ import {
 } from 'lucide-react';
 
 const SORT_OPTIONS = [
-  { value: 'random', label: 'Surprise Me (Shuffle)' },
-  { value: 'frequency', label: 'Frequency (High → Low)' },
-  { value: 'title', label: 'Title (A → Z)' },
-  { value: '-title', label: 'Title (Z → A)' },
-  { value: 'difficulty_asc', label: 'Difficulty (Easy → Hard)' },
-  { value: 'difficulty_desc', label: 'Difficulty (Hard → Easy)' },
-  { value: 'created', label: 'Newest First' },
+  { value: 'frequency', label: 'Most Asked' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
+  { value: 'question_number', label: 'Problem # (1 → 99)' },
 ];
 
 const FILTER_PRESETS = [
@@ -30,7 +28,7 @@ const FILTER_PRESETS = [
   { id: 'revisit', name: 'Revisit Due', filters: { status: 'NEEDS_REVISIT' }, icon: Clock, color: 'text-rose-400' },
   { id: 'solved', name: 'Solved', filters: { status: 'SOLVED' }, icon: Zap, color: 'text-emerald-400' },
   { id: 'bookmarked', name: 'Bookmarked', filters: { bookmarked: 'true' }, icon: Star, color: 'text-amber-400' },
-  { id: 'easy', name: 'Easy First', filters: { difficulty: 'Easy' }, icon: Zap, color: 'text-emerald-400' },
+  { id: 'easy', name: 'Easy', filters: { difficulty: 'Easy' }, icon: Zap, color: 'text-emerald-400' },
   { id: 'medium', name: 'Mediums', filters: { difficulty: 'Medium' }, icon: Zap, color: 'text-amber-400' },
   { id: 'hard', name: 'Hard Core', filters: { difficulty: 'Hard' }, icon: Zap, color: 'text-rose-400' },
 ];
@@ -354,7 +352,7 @@ export default function FilterSidebar({
   return (
     <>
       {/* Desktop Sticky Sidebar */}
-      <aside className="hidden lg:block w-64 shrink-0 glass-card rounded-2xl p-4 self-start sticky top-6 border border-white/[0.07]">
+      <aside className="hidden lg:block w-60 shrink-0 glass-card rounded-2xl p-4 self-start sticky top-6 border border-white/[0.07]">
         {sidebarContent}
       </aside>
 

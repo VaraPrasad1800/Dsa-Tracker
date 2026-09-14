@@ -55,7 +55,7 @@ export default function Navbar({ activeTab, setActiveTab, dueCount = 0, onOpenSh
     <motion.aside
       animate={{ width: sidebarWidth }}
       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-      className="glass-nav hidden lg:flex flex-col fixed left-0 top-0 h-screen z-40 overflow-hidden shrink-0"
+      className="glass-nav hidden lg:flex flex-col sticky top-0 h-screen z-40 overflow-hidden shrink-0"
       style={{ width: sidebarWidth }}
     >
       {/* Brand */}

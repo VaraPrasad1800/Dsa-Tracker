@@ -91,12 +91,9 @@ class Command(BaseCommand):
         UserAchievement = apps.get_model('tracker', 'UserAchievement')
         Problem = apps.get_model('tracker', 'Problem')
         Solution = apps.get_model('tracker', 'Solution')
-        TestCase = apps.get_model('tracker', 'TestCase')
-        LanguageTemplate = apps.get_model('tracker', 'LanguageTemplate')
         CompanyProblem = apps.get_model('tracker', 'CompanyProblem')
         UserProblemProgress = apps.get_model('tracker', 'UserProblemProgress')
         ReviewHistory = apps.get_model('tracker', 'ReviewHistory')
-        Submission = apps.get_model('tracker', 'Submission')
         StudyPlanDay = apps.get_model('tracker', 'StudyPlanDay')
         InterviewSession = apps.get_model('tracker', 'InterviewSession')
         InterviewProblem = apps.get_model('tracker', 'InterviewProblem')
@@ -117,11 +114,8 @@ class Command(BaseCommand):
             UserAchievement,
             Problem,
             Solution,
-            TestCase,
-            LanguageTemplate,
             CompanyProblem,
             UserProblemProgress,
-            Submission,
             StudyPlanDay,
             InterviewSession,
             ActivityEvent,

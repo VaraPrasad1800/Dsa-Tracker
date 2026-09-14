@@ -89,7 +89,6 @@ function AppContent() {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [targetProblemId, setTargetProblemId] = useState(null);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(220);
 
   const { data: dueData } = useQuery({
     queryKey: ['due-today-count'],
@@ -148,8 +147,8 @@ function AppContent() {
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
 
-      {/* Main content — offset by sidebar width on desktop */}
-      <div className="flex-1 flex flex-col min-h-screen lg:pl-[220px] transition-all duration-300">
+      {/* Main content — dynamically shares flex width with sticky sidebar */}
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 transition-all duration-300">
         {/* Reminder Banner */}
         <ReminderBanner
           dueCount={dueCount}
@@ -157,7 +156,7 @@ function AppContent() {
         />
 
         {/* Content Area */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 pb-20 lg:pb-6">
+        <main className="flex-1 px-4 sm:px-6 lg:px-6 pb-20 lg:pb-6">
           <AnimatePresence mode="wait">
             {activeTab === 'problems' && (
               <PageWrapper key="problems">

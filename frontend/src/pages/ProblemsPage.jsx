@@ -26,13 +26,11 @@ import { toast } from '../components/common/Toast';
 const HeroOrb = lazy(() => import('../components/dashboard/HeroOrb'));
 
 const SORT_OPTIONS = [
-  { value: 'question_number', label: 'Problem # (1 → 99)' },
-  { value: 'random', label: 'Surprise Me (Shuffle)' },
   { value: 'frequency', label: 'Most Asked' },
-  { value: 'title', label: 'Title A → Z' },
-  { value: 'difficulty_asc', label: 'Easy First' },
-  { value: 'difficulty_desc', label: 'Hard First' },
-  { value: 'created', label: 'Recently Added' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
+  { value: 'question_number', label: 'Problem # (1 → 99)' },
 ];
 
 export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, initialProblemId }) {
@@ -234,7 +232,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
   const totalPages = Math.ceil(totalCount / 20) || 1;
 
   return (
-    <div className="py-6 space-y-6 max-w-7xl mx-auto">
+    <div className="py-6 space-y-6 w-full">
       {/* 3D Hero Banner Strip */}
       <div
         className="glass-card rounded-3xl p-6 sm:p-8 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6"
@@ -281,7 +279,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
       />
 
       {/* Main Layout: Filters Sidebar + Search & Table/Cards */}
-      <div className="flex items-start gap-6">
+      <div className="flex items-start gap-4 sm:gap-5">
         {/* Filter Sidebar */}
         <FilterSidebar
           filters={filters}

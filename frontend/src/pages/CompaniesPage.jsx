@@ -50,7 +50,7 @@ export default function CompaniesPage({ onSelectCompany }) {
   }
 
   return (
-    <div className="py-6 space-y-6 max-w-7xl mx-auto">
+    <div className="py-6 space-y-6 w-full">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

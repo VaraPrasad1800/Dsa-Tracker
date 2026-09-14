@@ -11,11 +11,10 @@ import { toast } from '../components/common/Toast';
 
 const SORT_OPTIONS = [
   { value: 'frequency', label: 'Most Asked' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'hard', label: 'Hard' },
   { value: 'question_number', label: 'Problem # (1 → 99)' },
-  { value: 'title', label: 'Title A → Z' },
-  { value: 'difficulty_asc', label: 'Difficulty (Easy first)' },
-  { value: 'difficulty_desc', label: 'Difficulty (Hard first)' },
-  { value: 'created', label: 'Recently Added' },
 ];
 
 export default function CompanyProblemsPage({ company, onBack, onNavigateToProblems, onSolve }) {
@@ -103,7 +102,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
     responseCompany?.user_progress?.solved ?? company?.user_progress?.solved ?? 0;
 
   return (
-    <div className="py-6 space-y-6 max-w-7xl mx-auto">
+    <div className="py-6 space-y-6 w-full">
       {/* Company Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -135,7 +134,7 @@ export default function CompanyProblemsPage({ company, onBack, onNavigateToProbl
       </div>
 
       {/* Main Layout: Filters Sidebar + Search & Table */}
-      <div className="flex items-start gap-6">
+      <div className="flex items-start gap-4 sm:gap-5">
         <FilterSidebar
           filters={filters}
           onFilterChange={handleFilterChange}

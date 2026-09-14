@@ -359,7 +359,7 @@ def get_revision_queue(user) -> list:
     1. Overdue Box 1 (most urgent)
     2. Overdue higher-box cards
     3. NEEDS_REVISIT problems
-    4. Problems with recent failed submissions
+    4. Problems with recent unsolved attempts
     5. Recently solved problems (for reinforcement)
 
     Returns a list of safe dicts (no hidden test data).
@@ -371,7 +371,7 @@ def get_revision_queue(user) -> list:
 
     from tracker.scoring import (
         REVISION_ORDER_OVERDUE_BOX1, REVISION_ORDER_OVERDUE_HIGHER_BOX,
-        REVISION_ORDER_NEEDS_REVISIT, REVISION_ORDER_FAILED_SUBMISSION,
+        REVISION_ORDER_NEEDS_REVISIT, REVISION_ORDER_ATTEMPTED,
         REVISION_ORDER_RECENTLY_SOLVED,
     )
 
@@ -433,7 +433,7 @@ def get_revision_queue(user) -> list:
             continue
         seen_problem_ids.add(prog.problem_id)
         queue.append({
-            'priority': REVISION_ORDER_FAILED_SUBMISSION,
+            'priority': REVISION_ORDER_ATTEMPTED,
             'problem_id': str(prog.problem_id),
             'question_number': prog.problem.question_number,
             'problem_title': prog.problem.title,

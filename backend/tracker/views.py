@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import Count, Q, Case, When
+from django.db.models import Count, Q, Case, When, IntegerField
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
@@ -175,6 +175,27 @@ class ProblemListView(APIView):
         else:
             # Deterministic sorting with question_number tie-breaker for stable pagination
             sort = request.query_params.get('sort')
+            difficulty_easy_order = Case(
+                When(difficulty='Easy', then=0),
+                When(difficulty='Medium', then=1),
+                When(difficulty='Hard', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+            difficulty_medium_order = Case(
+                When(difficulty='Medium', then=0),
+                When(difficulty='Easy', then=1),
+                When(difficulty='Hard', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+            difficulty_hard_order = Case(
+                When(difficulty='Hard', then=0),
+                When(difficulty='Medium', then=1),
+                When(difficulty='Easy', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
             order_map = {
                 'number': ('question_number',),
                 'number_desc': ('-question_number',),
@@ -184,8 +205,11 @@ class ProblemListView(APIView):
                 'frequency_asc': ('frequency', 'question_number'),
                 'created': ('-created_at', 'question_number'),
                 'updated': ('-updated_at', 'question_number'),
-                'difficulty_asc': ('difficulty', 'question_number'),
-                'difficulty_desc': ('-difficulty', 'question_number'),
+                'easy': (difficulty_easy_order, 'question_number'),
+                'medium': (difficulty_medium_order, 'question_number'),
+                'hard': (difficulty_hard_order, 'question_number'),
+                'difficulty_asc': (difficulty_easy_order, 'question_number'),
+                'difficulty_desc': (difficulty_hard_order, 'question_number'),
                 'title': ('title', 'question_number'),
             }
             order_fields = order_map.get(sort, ('question_number',))
@@ -493,6 +517,27 @@ class ProblemByCompanyView(APIView):
             queryset = queryset.order_by('?')
         else:
             sort = request.query_params.get('sort')
+            difficulty_easy_order = Case(
+                When(difficulty='Easy', then=0),
+                When(difficulty='Medium', then=1),
+                When(difficulty='Hard', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+            difficulty_medium_order = Case(
+                When(difficulty='Medium', then=0),
+                When(difficulty='Easy', then=1),
+                When(difficulty='Hard', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
+            difficulty_hard_order = Case(
+                When(difficulty='Hard', then=0),
+                When(difficulty='Medium', then=1),
+                When(difficulty='Easy', then=2),
+                default=3,
+                output_field=IntegerField(),
+            )
             order_map = {
                 'frequency': ('-frequency', 'question_number'),
                 'created': ('-created_at', 'question_number'),
@@ -501,8 +546,11 @@ class ProblemByCompanyView(APIView):
                 'frequency_asc': ('frequency', 'question_number'),
                 'question_number': ('question_number',),
                 '-question_number': ('-question_number',),
-                'difficulty_asc': ('difficulty', 'question_number'),
-                'difficulty_desc': ('-difficulty', 'question_number'),
+                'easy': (difficulty_easy_order, 'question_number'),
+                'medium': (difficulty_medium_order, 'question_number'),
+                'hard': (difficulty_hard_order, 'question_number'),
+                'difficulty_asc': (difficulty_easy_order, 'question_number'),
+                'difficulty_desc': (difficulty_hard_order, 'question_number'),
             }
             order_fields = order_map.get(sort, ('-frequency', 'question_number'))
             if exact_number_match is not None:

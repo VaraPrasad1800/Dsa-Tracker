@@ -265,14 +265,14 @@
   }
 
   .data-table th {
-    @apply py-3 px-4 text-xs font-semibold uppercase tracking-wider;
+    @apply py-2.5 px-3 text-xs font-semibold uppercase tracking-wider;
     color: #64748b;
     background: rgba(255,255,255,0.02);
     border-bottom: 1px solid rgba(255,255,255,0.06);
   }
 
   .data-table td {
-    @apply py-3 px-4 text-sm;
+    @apply py-2.5 px-3 text-sm;
     border-bottom: 1px solid rgba(255,255,255,0.04);
   }
 

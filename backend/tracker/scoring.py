@@ -17,7 +17,7 @@ RULE SUMMARY
 """
 
 # ---------------------------------------------------------------------------
-# Base solve points (awarded on first Accepted submission per problem)
+# Base solve points (awarded on first solve per problem)
 # ---------------------------------------------------------------------------
 POINTS_EASY_SOLVE = 10
 POINTS_MEDIUM_SOLVE = 25
@@ -80,5 +80,6 @@ WEAK_TOPIC_THRESHOLD_PCT = 50
 REVISION_ORDER_OVERDUE_BOX1 = 0
 REVISION_ORDER_OVERDUE_HIGHER_BOX = 1
 REVISION_ORDER_NEEDS_REVISIT = 2
-REVISION_ORDER_FAILED_SUBMISSION = 3
+REVISION_ORDER_ATTEMPTED = 3
+REVISION_ORDER_FAILED_SUBMISSION = REVISION_ORDER_ATTEMPTED  # Backward-compatibility alias
 REVISION_ORDER_RECENTLY_SOLVED = 4

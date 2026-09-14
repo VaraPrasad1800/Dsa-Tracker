@@ -110,14 +110,14 @@ export default function ProblemsTable({
         <table className="data-table">
           <thead>
             <tr>
-              <th>Problem Title</th>
-              <th>Difficulty</th>
-              <th>Topics</th>
-              <th className="hidden md:table-cell">Companies</th>
-              <th>Leitner Box</th>
-              <th className="hidden sm:table-cell">Solved</th>
-              <th>Status</th>
-              <th className="text-right">Actions</th>
+              <th className="min-w-[150px]">Problem Title</th>
+              <th className="w-20 whitespace-nowrap">Difficulty</th>
+              <th className="max-w-[140px]">Topics</th>
+              <th className="hidden md:table-cell max-w-[120px]">Companies</th>
+              <th className="w-20 whitespace-nowrap text-center">Leitner Box</th>
+              <th className="hidden sm:table-cell w-14 text-center whitespace-nowrap">Solved</th>
+              <th className="w-24 whitespace-nowrap">Status</th>
+              <th className="text-right pr-4 whitespace-nowrap w-36">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -145,7 +145,7 @@ export default function ProblemsTable({
   return (
     <div className="glass-card rounded-2xl overflow-hidden border border-white/[0.07] flex flex-col justify-between shadow-glass">
       {/* Sub-header controls bar */}
-      <div className="flex items-center justify-between px-5 py-2.5 border-b border-white/[0.06] bg-black/20">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/20">
         <span className="text-xs font-medium text-slate-400">
           Showing <span className="text-white font-semibold">{(page - 1) * pageSize + 1}</span>–
           <span className="text-white font-semibold">{Math.min(page * pageSize, totalCount)}</span> of{' '}
@@ -158,14 +158,14 @@ export default function ProblemsTable({
         <table className="data-table">
           <thead>
             <tr>
-              <th>Problem Title</th>
-              <th>Difficulty</th>
-              <th>Topics</th>
-              <th className="hidden md:table-cell">Companies</th>
-              <th>Leitner Box</th>
-              <th className="hidden sm:table-cell">Solved</th>
-              <th>Status</th>
-              <th className="text-right pr-5">Actions</th>
+              <th className="min-w-[150px]">Problem Title</th>
+              <th className="w-20 whitespace-nowrap">Difficulty</th>
+              <th className="max-w-[140px]">Topics</th>
+              <th className="hidden md:table-cell max-w-[120px]">Companies</th>
+              <th className="w-20 whitespace-nowrap text-center">Leitner Box</th>
+              <th className="hidden sm:table-cell w-14 text-center whitespace-nowrap">Solved</th>
+              <th className="w-24 whitespace-nowrap">Status</th>
+              <th className="text-right pr-4 whitespace-nowrap w-36">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -183,12 +183,15 @@ export default function ProblemsTable({
                     className="hover:bg-white/[0.03] transition-colors group cursor-pointer"
                   >
                     {/* Title */}
-                    <td className="font-medium text-slate-100 py-3.5 px-4">
+                    <td className="font-medium text-slate-100 py-2.5 px-3">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-indigo-400 font-bold text-xs shrink-0">
                           #{prob.question_number || prob.leetcode_id}
                         </span>
-                        <span className="group-hover:text-indigo-300 transition-colors font-semibold">
+                        <span
+                          className="group-hover:text-indigo-300 transition-colors font-semibold truncate max-w-[180px] lg:max-w-[240px] xl:max-w-[340px] 2xl:max-w-none"
+                          title={prob.title}
+                        >
                           {prob.title}
                         </span>
 
@@ -198,7 +201,7 @@ export default function ProblemsTable({
                             target="_blank"
                             rel="noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className={`p-1 rounded-lg transition-colors ${
+                            className={`p-1 rounded-lg shrink-0 transition-colors ${
                               prob.is_premium
                                 ? 'text-amber-500/70 hover:text-amber-400'
                                 : 'text-slate-500 hover:text-indigo-400'
@@ -213,7 +216,7 @@ export default function ProblemsTable({
                           <Link
                             to={`/problems/${prob.id}/solution`}
                             onClick={(e) => e.stopPropagation()}
-                            className="p-1 rounded-lg transition-colors text-slate-500 hover:text-amber-400"
+                            className="p-1 rounded-lg shrink-0 transition-colors text-slate-500 hover:text-amber-400"
                             title="View Solution"
                           >
                             <FileText className="h-3.5 w-3.5" />
@@ -222,7 +225,7 @@ export default function ProblemsTable({
 
                         {prob.is_premium && (
                           <span
-                            className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                            className="text-[9px] px-1.5 py-0.5 rounded-full shrink-0 font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30"
                             title="LeetCode Premium only"
                           >
                             P
@@ -232,20 +235,20 @@ export default function ProblemsTable({
                         <BookmarkButton
                           problemId={prob.id}
                           bookmarked={prob.is_bookmarked}
-                          className="p-1 rounded-lg"
+                          className="p-1 rounded-lg shrink-0"
                         />
                       </div>
                     </td>
 
                     {/* Difficulty */}
-                    <td className="whitespace-nowrap">
+                    <td className="whitespace-nowrap w-20 py-2.5 px-3">
                       {getDifficultyBadge(prob.difficulty)}
                     </td>
 
                     {/* Topics */}
-                    <td>
+                    <td className="max-w-[140px] py-2.5 px-3">
                       {showTags && prob.tags?.length > 0 ? (
-                        <div className="flex flex-wrap gap-1 max-w-xs">
+                        <div className="flex flex-wrap gap-1 max-w-[140px]">
                           {prob.tags.slice(0, 2).map((t) => (
                             <TagBadge key={t.id} name={t.name} color={t.color} compact />
                           ))}
@@ -261,12 +264,13 @@ export default function ProblemsTable({
                     </td>
 
                     {/* Companies */}
-                    <td className="hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
+                    <td className="hidden md:table-cell max-w-[120px] py-2.5 px-3">
+                      <div className="flex flex-wrap gap-1 max-w-[120px]">
                         {prob.companies?.slice(0, 2).map((c) => (
                           <span
                             key={c.id}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-900/50"
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-950/40 text-indigo-300 border border-indigo-900/50 truncate max-w-[80px]"
+                            title={c.name}
                           >
                             {c.name}
                           </span>
@@ -280,23 +284,23 @@ export default function ProblemsTable({
                     </td>
 
                     {/* Leitner Box */}
-                    <td className="whitespace-nowrap">
+                    <td className="whitespace-nowrap w-20 text-center py-2.5 px-3">
                       {getBoxBadge(box, nextReview)}
                     </td>
 
                     {/* Solved Count */}
-                    <td className="whitespace-nowrap hidden sm:table-cell text-xs text-slate-400">
+                    <td className="whitespace-nowrap hidden sm:table-cell w-14 text-center text-xs text-slate-400 py-2.5 px-3">
                       {progress?.times_solved ? `${progress.times_solved}×` : '0×'}
                     </td>
 
                     {/* Status Badge */}
-                    <td className="whitespace-nowrap">
+                    <td className="whitespace-nowrap w-24 py-2.5 px-3">
                       {getStatusBadge(status)}
                     </td>
 
                     {/* Inline Action Buttons */}
                     <td
-                      className="text-right pr-5 whitespace-nowrap"
+                      className="text-right pr-4 whitespace-nowrap w-36 py-2.5 px-3"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1.5">
@@ -307,7 +311,7 @@ export default function ProblemsTable({
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all cursor-pointer"
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/25 transition-all cursor-pointer shrink-0"
                             title="Practice on LeetCode"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
@@ -317,7 +321,7 @@ export default function ProblemsTable({
                         <motion.button
                           whileTap={{ scale: 0.88 }}
                           onClick={() => onQuickUpdateStatus(prob.id, 'SOLVED', status)}
-                          className={`p-1.5 rounded-lg transition-all ${
+                          className={`p-1.5 rounded-lg transition-all shrink-0 ${
                             status === 'SOLVED'
                               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                               : 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10'
@@ -329,7 +333,7 @@ export default function ProblemsTable({
                         <motion.button
                           whileTap={{ scale: 0.88 }}
                           onClick={() => onQuickUpdateStatus(prob.id, 'NEEDS_REVISIT', status)}
-                          className={`p-1.5 rounded-lg transition-all ${
+                          className={`p-1.5 rounded-lg transition-all shrink-0 ${
                             status === 'NEEDS_REVISIT'
                               ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                               : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/10'

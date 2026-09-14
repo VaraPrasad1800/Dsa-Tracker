@@ -5,7 +5,7 @@ RULES
 -----
 - Challenges are server-authoritative: start/end times are set by the server.
 - Points cannot be adjusted from the frontend.
-- Challenge completion is detected by counting Accepted submissions
+- Challenge completion is detected by counting solved problems
   (or completed Leitner reviews for REVIEW template) after the challenge starts.
 - On expiry (detected by Celery task), status → EXPIRED, partial points may apply.
 - Scoring: base points if target_count reached; bonus_points if also within deadline.

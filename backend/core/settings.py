@@ -78,7 +78,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core.wsgi.application'
 
 # Database configuration: PostgreSQL with SQLite fallback
-if os.environ.get('POSTGRES_DB') and not IS_TESTING and os.environ.get('USE_SQLITE') != 'True':
+# When DEBUG=True, default to SQLite unless USE_POSTGRES=True is set explicitly.
+use_postgres = False
+if not IS_TESTING and os.environ.get('USE_SQLITE') != 'True':
+    if DEBUG:
+        use_postgres = (os.environ.get('USE_POSTGRES', 'False').lower() in ('true', '1')) and bool(os.environ.get('POSTGRES_DB'))
+    else:
+        use_postgres = bool(os.environ.get('POSTGRES_DB'))
+
+if use_postgres:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -99,19 +107,13 @@ else:
     }
 
 # Cache Configuration: Redis with LocMemCache fallback
-REDIS_URL = os.environ.get('REDIS_URL')
-use_redis = False
-if REDIS_URL and not IS_TESTING:
-    try:
-        import socket
-        from urllib.parse import urlparse
-        parsed = urlparse(REDIS_URL)
-        host = parsed.hostname or 'localhost'
-        port = parsed.port or 6379
-        with socket.create_connection((host, port), timeout=0.5):
-            use_redis = True
-    except Exception:
-        use_redis = False
+# Explicitly controlled by USE_REDIS flag without blocking network startup probes
+REDIS_URL = os.environ.get('REDIS_URL', '').strip()
+use_redis_env = os.environ.get('USE_REDIS')
+if use_redis_env is not None:
+    use_redis = (use_redis_env.lower() in ('true', '1')) and bool(REDIS_URL) and not IS_TESTING
+else:
+    use_redis = (not DEBUG) and bool(REDIS_URL) and not IS_TESTING
 
 if use_redis:
     CACHES = {
@@ -146,7 +148,7 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ---------------------------------------------------------------------------
-# CORS
+# CORS & CSRF
 # ---------------------------------------------------------------------------
 # Production: set CORS_ALLOWED_ORIGINS to a comma-separated list of allowed
 # frontend origins, e.g. CORS_ALLOWED_ORIGINS=https://your-app.vercel.app
@@ -161,6 +163,25 @@ if _cors_origins_env:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins_env.split(',') if o.strip()]
 else:
     CORS_ALLOW_ALL_ORIGINS = True  # dev fallback — always set in production
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+    ]
+
+_csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
+if _csrf_origins_env:
+    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins_env.split(',') if o.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
 
 # Django REST Framework
 REST_FRAMEWORK = {
@@ -263,7 +284,13 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
-CELERY_TASK_ALWAYS_EAGER = True if IS_TESTING else (os.environ.get('CELERY_ALWAYS_EAGER', 'False') == 'True')
+
+celery_eager_env = os.environ.get('CELERY_ALWAYS_EAGER')
+if celery_eager_env is not None:
+    CELERY_TASK_ALWAYS_EAGER = (celery_eager_env.lower() in ('true', '1')) or IS_TESTING
+else:
+    CELERY_TASK_ALWAYS_EAGER = True if (IS_TESTING or DEBUG or not use_redis) else False
+
 CELERY_TASK_IGNORE_RESULT = True
 CELERY_TASK_PUBLISH_RETRY = False
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = False

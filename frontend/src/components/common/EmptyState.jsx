@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Inbox, BarChart3, CalendarX, BookOpen } from 'lucide-react';
+import { Search, Inbox, BarChart3, CalendarX, BookOpen, AlertCircle } from 'lucide-react';
 
 const PRESETS = {
   search: {
@@ -8,6 +8,13 @@ const PRESETS = {
     body: 'Try adjusting your search or clearing active filters.',
     iconColor: 'text-slate-500',
     iconBg: 'bg-slate-800/50',
+  },
+  error: {
+    Icon: AlertCircle,
+    title: 'Failed to load content',
+    body: 'Could not connect to the server. Please check that the backend is running and try again.',
+    iconColor: 'text-rose-400',
+    iconBg: 'bg-rose-500/10',
   },
   noproblems: {
     Icon: Inbox,

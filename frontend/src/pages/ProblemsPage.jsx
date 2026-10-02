@@ -12,6 +12,8 @@ import {
   Sparkles,
   Flame,
   CheckCircle2,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { problemsApi, progressApi } from '../api/client';
 import StatsSummary from '../components/StatsSummary';
@@ -89,8 +91,14 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
     setPage(1);
   }, [debouncedSearch]);
 
-  // Problems query with staleTime and placeholderData
-  const { data: problemsData, isLoading: loadingProblems } = useQuery({
+  // Problems query with staleTime, placeholderData, and explicit error handling
+  const {
+    data: problemsData,
+    isLoading: loadingProblems,
+    isError: problemsError,
+    error: problemsErrorObj,
+    refetch: refetchProblems,
+  } = useQuery({
     queryKey: ['problems', filters, debouncedSearch, page, sort, shuffleNonce],
     queryFn: async () => {
       const params = {
@@ -408,8 +416,29 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
             </button>
           </div>
 
-          {/* Cards or Table View */}
-          {viewMode === 'table' ? (
+          {/* Error State, Cards or Table View */}
+          {problemsError ? (
+            <div className="glass-card rounded-2xl p-8 border border-rose-500/20 bg-rose-950/10 text-center">
+              <EmptyState
+                preset="error"
+                title="Failed to Load Problems"
+                body={
+                  problemsErrorObj?.response?.data?.detail ||
+                  problemsErrorObj?.message ||
+                  'Could not connect to the backend server. Please verify that the local server is running on http://127.0.0.1:8000.'
+                }
+                action={
+                  <button
+                    onClick={() => refetchProblems()}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-all cursor-pointer"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    <span>Retry Loading</span>
+                  </button>
+                }
+              />
+            </div>
+          ) : viewMode === 'table' ? (
             <ProblemsTable
               problems={problems}
               totalCount={totalCount}

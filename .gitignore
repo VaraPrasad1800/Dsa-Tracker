@@ -155,6 +155,7 @@ build/
 
 # Vercel & Editor
 .vercel/
+vercel.json
 .vscode/
 
 # OS junk files

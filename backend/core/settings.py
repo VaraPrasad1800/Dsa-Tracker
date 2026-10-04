@@ -16,24 +16,12 @@ DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
-# Production security hardening
-if not DEBUG:
-    SECURE_SSL_REDIRECT = (os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() == 'true') and not IS_TESTING
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-else:
-    SECURE_SSL_REDIRECT = False
-    SECURE_HSTS_SECONDS = 0
-    SECURE_PROXY_SSL_HEADER = None
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
+# Local security settings (plain HTTP for development)
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -84,34 +72,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
-# Database configuration: PostgreSQL with SQLite fallback
-# When DEBUG=True, default to SQLite unless USE_POSTGRES=True is set explicitly.
-use_postgres = False
-if not IS_TESTING and os.environ.get('USE_SQLITE') != 'True':
-    if DEBUG:
-        use_postgres = (os.environ.get('USE_POSTGRES', 'False').lower() in ('true', '1')) and bool(os.environ.get('POSTGRES_DB'))
-    else:
-        use_postgres = bool(os.environ.get('POSTGRES_DB'))
-
-if use_postgres:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('POSTGRES_DB', 'dsa_tracker'),
-            'USER': os.environ.get('POSTGRES_USER', 'postgres'),
-            'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'postgres'),
-            'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
-            'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-            'CONN_MAX_AGE': int(os.environ.get('DB_CONN_MAX_AGE', 600)),
-        }
+# Database configuration: SQLite for local development
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / os.environ.get('SQLITE_DB_NAME', 'db.sqlite3'),
-        }
-    }
+}
 
 # Cache Configuration: Redis with LocMemCache fallback
 # Explicitly controlled by USE_REDIS flag without blocking network startup probes
@@ -174,10 +141,6 @@ else:
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
     ]
 
 _csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
@@ -187,12 +150,6 @@ else:
     CSRF_TRUSTED_ORIGINS = [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-        'http://localhost:8001',
-        'http://127.0.0.1:8001',
     ]
 
 # Django REST Framework

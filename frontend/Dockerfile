@@ -1,4 +1,4 @@
-﻿FROM node:20-alpine AS build
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
@@ -22,7 +22,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://backend:8000/api/;
+        proxy_pass http://backend:8001/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

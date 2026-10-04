@@ -275,10 +275,10 @@ python manage.py seed_data
 # Run backend automated tests
 python manage.py test tracker
 
-# Start the Django development server on port 8000
-python manage.py runserver 8000
+# Start the Django development server on port 8001
+python manage.py runserver 8001
 ```
-*Backend API will be running at `http://127.0.0.1:8000/api/` with interactive OpenAPI docs at `http://127.0.0.1:8000/api/docs/`.*
+*Backend API will be running at `http://127.0.0.1:8001/api/` with interactive OpenAPI docs at `http://127.0.0.1:8001/api/docs/`.*
 
 #### 3. Frontend Setup (React + Vite)
 In a new terminal window:
@@ -294,7 +294,7 @@ cp .env.example .env.local
 # Run frontend unit tests
 npm test -- --run
 
-# Start the Vite development server (proxies /api to http://127.0.0.1:8000)
+# Start the Vite development server (proxies /api to http://127.0.0.1:8001)
 npm run dev
 ```
 *Frontend application will be available at `http://localhost:5173/`.*
@@ -350,7 +350,8 @@ The project reads configuration from environment variables with sensible default
 | Variable Name | Required | Default (Dev) | Description |
 | :--- | :--- | :--- | :--- |
 | `VITE_API_BASE_URL` | No | `"/api"` | Base API path. In local dev, Vite proxies `/api` to the backend. In production, set to your backend API URL (e.g. `https://api.yourdomain.com/api`). |
-| `VITE_BACKEND_PORT` | No | `8000` | Port of the local Django development server targeted by Vite proxy. |
+| `VITE_API_URL` | No | `http://localhost:8001` | Backend API URL for direct requests in development. |
+| `VITE_BACKEND_PORT` | No | `8001` | Port of the local Django development server targeted by Vite proxy. |
 
 ---
 

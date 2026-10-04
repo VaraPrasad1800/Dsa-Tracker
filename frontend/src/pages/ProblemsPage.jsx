@@ -425,7 +425,7 @@ export default function ProblemsPage({ activeTopicFilter, onSelectTopicFilter, i
                 body={
                   problemsErrorObj?.response?.data?.detail ||
                   problemsErrorObj?.message ||
-                  'Could not connect to the backend server. Please verify that the local server is running on http://127.0.0.1:8000.'
+                  'Could not connect to the backend server. Please verify that the local server is running on http://127.0.0.1:8001.'
                 }
                 action={
                   <button
